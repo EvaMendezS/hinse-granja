@@ -8,11 +8,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Hinse" />
   <title>Hinse — Granja Avícola</title>
+
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
 
 <!-- SPLASH -->
@@ -142,6 +144,7 @@
     </button>
   </nav>
 
+  <!-- MENÚ MÁS -->
   <div id="masMenu" class="mas-menu hidden">
     <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
     <button class="mas-btn" data-view="postura">🥚 Postura</button>
@@ -149,13 +152,24 @@
 
 </div>
 
-<!-- MODALES (TODO IGUAL QUE TU VERSION ORIGINAL) -->
-<!-- ... se mantienen sin cambios ... -->
+<!-- MODALES (SIN CAMBIOS) -->
+<!-- ... todo igual que tu archivo original ... -->
 
+<!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
+
+<!-- ✅ FIX IMPORTANTE: AUTO CARGA DASHBOARD -->
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (typeof navigateTo === 'function') {
+        navigateTo('dashboard');
+      }
+    }, 250);
+  });
+</script>
 
 </body>
 </html>

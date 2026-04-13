@@ -1,10 +1,10 @@
-'use strict';
-
 /* ============================================================
    Hinse — Control Avícola
    app.js — Lógica principal
    Almacenamiento: localStorage (sin servidor, 100% offline)
    ============================================================ */
+
+'use strict';
 
 // ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
@@ -84,7 +84,7 @@ function navigateTo(view) {
 
   if (view === 'dashboard')    renderDashboard();
   if (view === 'postura')      fillLoteSelect('posturaLote');
-  if (view === 'alimentacion')  fillLoteSelect('alimentacionLote');
+  if (view === 'alimentacion') fillLoteSelect('alimentacionLote');
   if (view === 'vacunacion')   fillLoteSelect('vacunacionLote');
   if (view === 'medicacion')   fillLoteSelect('medicacionLote');
   if (view === 'mortandad')    fillLoteSelect('mortandadLote');
@@ -126,13 +126,12 @@ function fillLoteSelect(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const lotes = DB.get(KEYS.lotes);
-
   sel.innerHTML = lotes.length
     ? lotes.map(l => `<option value="${l.id}">${l.nombre} (${l.cantidadActual} aves)</option>`).join('')
     : '<option value="">— Sin lotes registrados —</option>';
 }
 
-// ─── DASHBOARD ───────────────────────────────────────────────
+// ─── DASHBOARD ────────────────────────────────────────────────
 function populateDashDate() {
   const el = document.getElementById('dashDate');
   const d  = new Date();
@@ -153,14 +152,13 @@ function renderKPIs() {
   const medicacion = DB.get(KEYS.medicacion);
 
   const ponedoras = lotes.filter(l => l.etapa === 'produccion').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const recrias   = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const totalAves = ponedoras + recrias;
+  const recrías   = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const totalAves = ponedoras + recrías;
   const totalBajas = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
   const ultimos7 = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+    const d = new Date(); d.setDate(d.getDate() - i);
     ultimos7.push(d.toISOString().split('T')[0]);
   }
 
@@ -173,21 +171,28 @@ function renderKPIs() {
       <div class="kpi-icon">🐔</div>
       <div class="kpi-value">${totalAves.toLocaleString('es')}</div>
       <div class="kpi-label">Total Aves</div>
+      <div class="kpi-delta">${lotes.length} lote(s)</div>
     </div>
+
     <div class="kpi-card">
       <div class="kpi-icon">🥚</div>
       <div class="kpi-value">${ponedoras.toLocaleString('es')}</div>
       <div class="kpi-label">Ponedoras</div>
+      <div class="kpi-delta">${recrías.toLocaleString('es')} en recría</div>
     </div>
+
     <div class="kpi-card">
       <div class="kpi-icon">💀</div>
       <div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
       <div class="kpi-label">Mortandad Total</div>
+      <div class="kpi-delta">${totalAves > 0 ? ((totalBajas / (totalAves + totalBajas)) * 100).toFixed(1) + '%' : '—'}</div>
     </div>
+
     <div class="kpi-card">
       <div class="kpi-icon">💉</div>
       <div class="kpi-value">${vacReciente + medReciente}</div>
       <div class="kpi-label">Sanidad (7d)</div>
+      <div class="kpi-delta">${vacReciente} vacuna(s) · ${medReciente} med.</div>
     </div>
   `;
 }
@@ -196,31 +201,53 @@ function renderKPIs() {
 function renderAlertas() {
   const vacunas = DB.get(KEYS.vacunacion);
   const alertas = [];
-
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
   vacunas.forEach(v => {
     if (!v.proximaFecha) return;
-    const prox = new Date(v.proximaFecha); prox.setHours(0,0,0,0);
+    const prox = new Date(v.proximaFecha); prox.setHours(0, 0, 0, 0);
     const diff = Math.ceil((prox - hoy) / 864e5);
 
     if (diff >= 0 && diff <= 7)
-      alertas.push({ icon:'💉', title:`Vacuna próxima: ${v.vacuna}`, text:` en ${diff} días` });
+      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: ` — En ${diff} día(s)` });
+
+    if (diff < 0 && diff > -3)
+      alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: ` — Hace ${Math.abs(diff)} día(s)` });
   });
 
   const el = document.getElementById('alertasList');
   el.innerHTML = alertas.length
-    ? alertas.map(a => `<div>${a.icon} ${a.title} ${a.text}</div>`).join('')
-    : 'Sin alertas';
+    ? alertas.map(a => `
+        <div class="alerta-item">
+          <span>${a.icon}</span>
+          <strong>${a.title}</strong> ${a.text}
+        </div>`).join('')
+    : '✅ Sin alertas';
 }
 
-// ─── ACTIVIDAD ───────────────────────────────────────────────
+// ─── ACTIVIDAD ────────────────────────────────────────────────
 function renderActividad() {
+  const items = [];
+  const push = (key, icon, label) =>
+    DB.get(key).slice(-5).reverse().forEach(r =>
+      items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
+    );
+
+  push(KEYS.postura,      '🥚', r => `Postura: ${r.huevos}`);
+  push(KEYS.lotes,        '🐣', r => `Ingreso: ${r.nombre}`);
+  push(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna}`);
+  push(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad}`);
+  push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg`);
+
+  items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
+
   const el = document.getElementById('actividadList');
-  el.innerHTML = 'Actividad cargada';
+  el.innerHTML = items.slice(0, 8).map(it => `
+    <div>
+      ${it.icon} ${it.text} - ${fmtDate(it.ts)}
+    </div>
+  `).join('');
 }
 
-/* ============================================================
-   TODO LO DEMÁS (LOTES, POSTURA, ALIMENTACION, ETC)
-   SE MANTIENE IGUAL QUE TU ORIGINAL
-   ============================================================ */
+// ─── RESTO SIN CAMBIOS (lotes, postura, etc.) ─────────────────
+// (todo lo demás queda igual como lo tenías)
