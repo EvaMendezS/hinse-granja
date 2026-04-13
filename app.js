@@ -110,7 +110,7 @@ window.openModal = function(id) {
   modal.classList.remove('hidden');
   document.querySelector('body').style.overflow = 'hidden';
   // Fill selects
-  if (id === 'modalPostura')     fillLoteSelect('posturaLote');
+  if (id === 'modalPostura')      fillLoteSelect('posturaLote');
   if (id === 'modalAlimentacion') fillLoteSelect('alimentacionLote');
   if (id === 'modalVacunacion')   fillLoteSelect('vacunacionLote');
   if (id === 'modalMedicacion')   fillLoteSelect('medicacionLote');
@@ -162,41 +162,62 @@ function renderDashboard() {
 }
 
 function renderKPIs() {
-  const lotes        = DB.get(KEYS.lotes);
-  const posturas     = DB.get(KEYS.postura);
-  const mortandades  = DB.get(KEYS.mortandad);
+  const lotes       = DB.get(KEYS.lotes);
+  const mortandades = DB.get(KEYS.mortandad);
 
-  const totalAves    = lotes.reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const totalBajas   = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
+  const totalAves  = lotes.reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const totalBajas = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
-  // Huevos hoy
-  const todayStr = today();
-  const hoyPostura = posturas.filter(p => p.fecha === todayStr);
-  const hoyHuevos  = hoyPostura.reduce((s, p) => s + (parseInt(p.huevos) || 0), 0);
+  // Muertes hoy
+  const todayStr   = today();
+  const muertesHoy = mortandades
+    .filter(m => m.fecha === todayStr)
+    .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
-  // % postura promedio últimos 7 días
+  // Muertes últimos 7 días
   const ultimos7 = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(); d.setDate(d.getDate() - i);
     ultimos7.push(d.toISOString().split('T')[0]);
   }
-  const posturas7 = posturas.filter(p => ultimos7.includes(p.fecha));
-  let pct = 0;
-  if (totalAves > 0 && posturas7.length > 0) {
-    const totalHuevos7 = posturas7.reduce((s,p) => s + (parseInt(p.huevos)||0), 0);
-    pct = ((totalHuevos7 / (totalAves * 7)) * 100).toFixed(1);
-  }
+  const muertes7d = mortandades
+    .filter(m => ultimos7.includes(m.fecha))
+    .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
   const kpis = [
-    { icon:'🐔', label:'Total Aves', value: totalAves.toLocaleString('es'), color:'var(--accent)', delta: lotes.length ? `${lotes.length} lote(s)` : '' },
-    { icon:'🥚', label:'Huevos Hoy', value: hoyHuevos.toLocaleString('es'), color:'var(--gold)', delta: hoyPostura.length ? `${hoyPostura.length} lote(s) registrados` : 'Sin registros hoy' },
-    { icon:'📈', label:'% Postura 7d', value: `${pct}%`, color:'var(--blue)', delta: pct >= 80 ? '▲ Buena producción' : pct > 0 ? '▼ Revisar' : 'Sin datos' },
-    { icon:'💀', label:'Mortandad Total', value: totalBajas.toLocaleString('es'), color:'var(--red)', delta: totalAves > 0 ? `${((totalBajas/totalAves)*100).toFixed(1)}% del lote` : '' },
+    {
+      icon: '🐔',
+      label: 'Total Aves',
+      value: totalAves.toLocaleString('es'),
+      color: 'var(--accent)',
+      delta: lotes.length ? `${lotes.length} lote(s)` : '',
+    },
+    {
+      icon: '💀',
+      label: 'Mortandad Total',
+      value: totalBajas.toLocaleString('es'),
+      color: 'var(--red)',
+      delta: totalAves > 0 ? `${((totalBajas / totalAves) * 100).toFixed(1)}% del lote` : '',
+    },
+    {
+      icon: '📅',
+      label: 'Muertes Hoy',
+      value: muertesHoy.toLocaleString('es'),
+      color: muertesHoy > 0 ? 'var(--red)' : 'var(--text3)',
+      delta: muertesHoy > 0 ? '⚠️ Registrar causa' : '✅ Sin bajas hoy',
+    },
+    {
+      icon: '📉',
+      label: 'Bajas (7 días)',
+      value: muertes7d.toLocaleString('es'),
+      color: muertes7d > 0 ? '#c05050' : 'var(--text3)',
+      delta: totalAves > 0 ? `${((muertes7d / totalAves) * 100).toFixed(2)}% del lote` : '',
+    },
   ];
 
   const grid = document.getElementById('kpiGrid');
   grid.innerHTML = kpis.map((k, i) => `
-    <div class="kpi-card" style="--kpi-color:${k.color}; animation-delay:${i*0.07}s">
+    <div class="kpi-card" style="--kpi-color:${k.color}; animation-delay:${i * 0.07}s">
       <div class="kpi-icon">${k.icon}</div>
       <div class="kpi-value">${k.value}</div>
       <div class="kpi-label">${k.label}</div>
@@ -205,8 +226,8 @@ function renderKPIs() {
   `).join('');
 }
 
-let chartPostura = null;
-let chartLote    = null;
+let chartMortandad = null;
+let chartLote      = null;
 
 // Destruye el chart y resetea el canvas completamente para evitar loops de animación
 function destroyChart(chartRef, canvasId) {
@@ -214,7 +235,6 @@ function destroyChart(chartRef, canvasId) {
     chartRef.destroy();
     chartRef = null;
   }
-  // Resetear canvas reemplazándolo por uno nuevo limpio
   const old = document.getElementById(canvasId);
   if (old) {
     const nuevo = document.createElement('canvas');
@@ -226,33 +246,37 @@ function destroyChart(chartRef, canvasId) {
 }
 
 function renderCharts() {
-  renderChartPostura();
+  renderChartMortandad();
   renderChartLote();
 }
 
-function renderChartPostura() {
-  chartPostura = destroyChart(chartPostura, 'chartPostura');
+// ─── CHART: Mortandad últimos 7 días (reemplaza al de postura) ─
+function renderChartMortandad() {
+  chartMortandad = destroyChart(chartMortandad, 'chartMortandad');
 
-  const posturas = DB.get(KEYS.postura);
+  const mortandades = DB.get(KEYS.mortandad);
   const labels = [];
   const datos  = [];
+
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const str = d.toISOString().split('T')[0];
-    labels.push(d.toLocaleDateString('es-AR', { weekday:'short' }));
-    const total = posturas.filter(p => p.fecha === str).reduce((s,p) => s + (parseInt(p.huevos)||0), 0);
+    labels.push(d.toLocaleDateString('es-AR', { weekday: 'short' }));
+    const total = mortandades
+      .filter(m => m.fecha === str)
+      .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
     datos.push(total);
   }
 
-  const ctx = document.getElementById('chartPostura').getContext('2d');
-  chartPostura = new Chart(ctx, {
+  const ctx = document.getElementById('chartMortandad').getContext('2d');
+  chartMortandad = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [{
         data: datos,
-        backgroundColor: 'rgba(200,133,58,0.25)',
-        borderColor: '#c8853a',
+        backgroundColor: 'rgba(192,80,80,0.25)',
+        borderColor: '#c05050',
         borderWidth: 2,
         borderRadius: 6,
       }]
@@ -261,8 +285,8 @@ function renderChartPostura() {
       animation: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color:'#8a6848', font:{ size:11 } }, grid:{ display:false } },
-        y: { ticks: { color:'#8a6848', font:{ size:11 } }, grid:{ color:'rgba(255,255,255,.04)' }, beginAtZero: true }
+        x: { ticks: { color: '#8a6848', font: { size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: '#8a6848', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
       },
       responsive: true,
       maintainAspectRatio: false,
@@ -276,9 +300,9 @@ function renderChartLote() {
   const lotes = DB.get(KEYS.lotes);
   if (!lotes.length) return;
 
-  const labels = lotes.map(l => l.nombre.length > 12 ? l.nombre.slice(0,12)+'…' : l.nombre);
+  const labels = lotes.map(l => l.nombre.length > 12 ? l.nombre.slice(0, 12) + '…' : l.nombre);
   const datos  = lotes.map(l => parseInt(l.cantidadActual) || 0);
-  const colors = ['#c8853a','#d4a043','#a86828','#7a9ab5','#c05050','#8a6848'];
+  const colors = ['#c8853a', '#d4a043', '#a86828', '#7a9ab5', '#c05050', '#8a6848'];
 
   const ctx = document.getElementById('chartLote').getContext('2d');
   chartLote = new Chart(ctx, {
@@ -290,7 +314,7 @@ function renderChartLote() {
     options: {
       animation: false,
       plugins: {
-        legend: { position:'bottom', labels:{ color:'#c8a880', font:{size:11}, padding:8 } }
+        legend: { position: 'bottom', labels: { color: '#c8a880', font: { size: 11 }, padding: 8 } }
       },
       responsive: true,
       maintainAspectRatio: false,
@@ -299,29 +323,31 @@ function renderChartLote() {
 }
 
 function renderAlertas() {
-  const lotes = DB.get(KEYS.lotes);
+  const lotes   = DB.get(KEYS.lotes);
   const vacunas = DB.get(KEYS.vacunacion);
   const alertas = [];
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
   // Vacunas próximas (< 7 días)
   vacunas.forEach(v => {
     if (!v.proximaFecha) return;
-    const prox = new Date(v.proximaFecha); prox.setHours(0,0,0,0);
+    const prox = new Date(v.proximaFecha); prox.setHours(0, 0, 0, 0);
     const diff = Math.ceil((prox - hoy) / 864e5);
     if (diff >= 0 && diff <= 7) {
-      alertas.push({ icon:'💉', title:`Vacuna próxima: ${v.vacuna}`, text:`En ${diff} día(s) — Lote: ${getLoteNombre(v.loteId)}` });
+      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: `En ${diff} día(s) — Lote: ${getLoteNombre(v.loteId)}` });
     }
     if (diff < 0 && diff > -3) {
-      alertas.push({ icon:'🔴', title:`Vacuna vencida: ${v.vacuna}`, text:`Hace ${Math.abs(diff)} día(s) — Revisar!` });
+      alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: `Hace ${Math.abs(diff)} día(s) — Revisar!` });
     }
   });
 
-  // Lotes sin postura hoy
+  // Mortandad elevada hoy (más de 5 aves en cualquier lote)
   const hoyStr = today();
-  const posturaHoy = DB.get(KEYS.postura).filter(p => p.fecha === hoyStr).map(p => p.loteId);
-  lotes.filter(l => l.etapa === 'produccion' && !posturaHoy.includes(l.id)).forEach(l => {
-    alertas.push({ icon:'⚠️', title:`Sin registro de postura hoy`, text:`Lote: ${l.nombre}` });
+  const mortHoy = DB.get(KEYS.mortandad).filter(m => m.fecha === hoyStr);
+  mortHoy.forEach(m => {
+    if (parseInt(m.cantidad) >= 5) {
+      alertas.push({ icon: '🚨', title: `Alta mortandad hoy: ${m.cantidad} aves`, text: `Lote: ${getLoteNombre(m.loteId)} — Verificar causa` });
+    }
   });
 
   const el = document.getElementById('alertasList');
@@ -350,13 +376,13 @@ function renderActividad() {
   addItems(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
   addItems(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
 
-  items.sort((a,b) => (b.ts > a.ts ? 1 : -1));
+  items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
   const el = document.getElementById('actividadList');
   if (!items.length) {
     el.innerHTML = '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aún no hay actividad registrada.</p>';
     return;
   }
-  el.innerHTML = items.slice(0,8).map(it => `
+  el.innerHTML = items.slice(0, 8).map(it => `
     <div class="actividad-item">
       <span style="font-size:1rem">${it.icon}</span>
       <span class="actividad-text">${it.text}</span>
@@ -367,20 +393,20 @@ function renderActividad() {
 
 // ─── LOTES ────────────────────────────────────────────────────
 window.saveLote = function() {
-  const id        = document.getElementById('loteId').value;
-  const cantidad  = parseInt(document.getElementById('loteCantidad').value) || 0;
-  const registro  = {
-    id:             id || uid(),
-    fecha:          document.getElementById('loteFecha').value,
-    nombre:         document.getElementById('loteNombre').value.trim(),
-    cantidadInicial:cantidad,
-    cantidadActual: cantidad,
-    raza:           document.getElementById('loteRaza').value.trim(),
-    semana:         document.getElementById('loteSemana').value,
-    procedencia:    document.getElementById('loteProcedencia').value.trim(),
-    etapa:          document.getElementById('loteEtapa').value,
-    notas:          document.getElementById('loteNotas').value.trim(),
-    createdAt:      today(),
+  const id       = document.getElementById('loteId').value;
+  const cantidad = parseInt(document.getElementById('loteCantidad').value) || 0;
+  const registro = {
+    id:              id || uid(),
+    fecha:           document.getElementById('loteFecha').value,
+    nombre:          document.getElementById('loteNombre').value.trim(),
+    cantidadInicial: cantidad,
+    cantidadActual:  cantidad,
+    raza:            document.getElementById('loteRaza').value.trim(),
+    semana:          document.getElementById('loteSemana').value,
+    procedencia:     document.getElementById('loteProcedencia').value.trim(),
+    etapa:           document.getElementById('loteEtapa').value,
+    notas:           document.getElementById('loteNotas').value.trim(),
+    createdAt:       today(),
   };
   if (!registro.nombre || !registro.cantidadInicial) return showToast('⚠️ Completá nombre y cantidad');
 
@@ -411,11 +437,11 @@ function renderLote() {
       </div>
       <div class="data-card-body">
         <div class="data-field"><span class="lbl">Ingreso</span><span class="val">${fmtDate(l.fecha)}</span></div>
-        <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(l.cantidadActual)||0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(l.cantidadActual) || 0).toLocaleString('es')}</span></div>
         <div class="data-field"><span class="lbl">Raza</span><span class="val">${l.raza || '—'}</span></div>
         <div class="data-field"><span class="lbl">Semana de vida</span><span class="val">${l.semana || '—'}</span></div>
         <div class="data-field"><span class="lbl">Procedencia</span><span class="val">${l.procedencia || '—'}</span></div>
-        <div class="data-field"><span class="lbl">Ingreso inicial</span><span class="val">${(parseInt(l.cantidadInicial)||0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Ingreso inicial</span><span class="val">${(parseInt(l.cantidadInicial) || 0).toLocaleString('es')}</span></div>
       </div>
       ${l.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${l.notas}</p>` : ''}
       <div class="data-card-actions">
@@ -450,30 +476,29 @@ window.deleteLote = function(id) {
 
 // ─── POSTURA ─────────────────────────────────────────────────
 function calcPosturaPct() {
-  const loteId  = document.getElementById('posturaLote').value;
-  const huevos  = parseInt(document.getElementById('posturaHuevos').value) || 0;
-  const lote    = DB.get(KEYS.lotes).find(l => l.id === loteId);
-  const aves    = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
-  const pct     = aves > 0 ? ((huevos / aves) * 100).toFixed(1) : '—';
+  const loteId = document.getElementById('posturaLote').value;
+  const huevos = parseInt(document.getElementById('posturaHuevos').value) || 0;
+  const lote   = DB.get(KEYS.lotes).find(l => l.id === loteId);
+  const aves   = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
+  const pct    = aves > 0 ? ((huevos / aves) * 100).toFixed(1) : '—';
   document.getElementById('posturaPorc').value = aves > 0 ? `${pct}%` : '— (registrá un lote primero)';
 }
 
 window.savePostura = function() {
   const id = document.getElementById('posturaId').value;
   const registro = {
-    id:       id || uid(),
-    fecha:    document.getElementById('posturaFecha').value,
-    loteId:   document.getElementById('posturaLote').value,
-    huevos:   parseInt(document.getElementById('posturaHuevos').value) || 0,
-    rotos:    parseInt(document.getElementById('posturaRotos').value)  || 0,
-    notas:    document.getElementById('posturaNotas').value.trim(),
+    id:        id || uid(),
+    fecha:     document.getElementById('posturaFecha').value,
+    loteId:    document.getElementById('posturaLote').value,
+    huevos:    parseInt(document.getElementById('posturaHuevos').value) || 0,
+    rotos:     parseInt(document.getElementById('posturaRotos').value)  || 0,
+    notas:     document.getElementById('posturaNotas').value.trim(),
     createdAt: today(),
   };
   if (!registro.loteId) return showToast('⚠️ Seleccioná un lote');
-  if (!registro.huevos && registro.huevos !== 0) return showToast('⚠️ Ingresá cantidad de huevos');
 
   const list = DB.get(KEYS.postura);
-  if (id) { const i = list.findIndex(x => x.id === id); if (i>-1) list[i] = registro; }
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = registro; }
   else list.push(registro);
   DB.set(KEYS.postura, list);
   closeModal('modalPostura');
@@ -487,15 +512,15 @@ window.renderPostura = function() {
   const mes   = mesEl ? mesEl.value : '';
   let list = DB.get(KEYS.postura);
   if (mes) list = list.filter(p => p.fecha && p.fecha.startsWith(mes));
-  list = list.slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  list = list.slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   const el = document.getElementById('posturaList');
   if (!list.length) { el.innerHTML = emptyState('🥚', 'Sin registros de postura'); return; }
 
   el.innerHTML = list.map(p => {
-    const lote = DB.get(KEYS.lotes).find(l => l.id === p.loteId);
-    const aves = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
-    const pct  = aves > 0 ? ((p.huevos / aves) * 100).toFixed(1) : null;
+    const lote   = DB.get(KEYS.lotes).find(l => l.id === p.loteId);
+    const aves   = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
+    const pct    = aves > 0 ? ((p.huevos / aves) * 100).toFixed(1) : null;
     const pctNum = pct ? parseFloat(pct) : 0;
     const barColor = pctNum >= 80 ? 'var(--accent)' : pctNum >= 60 ? 'var(--gold)' : 'var(--red)';
     return `
@@ -507,10 +532,10 @@ window.renderPostura = function() {
         <div class="data-card-body">
           <div class="data-field"><span class="lbl">Huevos</span><span class="val" style="color:var(--gold)">${p.huevos.toLocaleString('es')}</span></div>
           <div class="data-field"><span class="lbl">Rotos/Descarte</span><span class="val">${p.rotos}</span></div>
-          <div class="data-field"><span class="lbl">% Postura</span><span class="val" style="color:${barColor}">${pct ? pct+'%' : '—'}</span></div>
+          <div class="data-field"><span class="lbl">% Postura</span><span class="val" style="color:${barColor}">${pct ? pct + '%' : '—'}</span></div>
           <div class="data-field"><span class="lbl">Huevos netos</span><span class="val">${(p.huevos - p.rotos).toLocaleString('es')}</span></div>
         </div>
-        ${pct ? `<div class="postura-bar-wrap"><div class="postura-bar-fill" style="width:${Math.min(pctNum,100)}%;background:${barColor}"></div></div>` : ''}
+        ${pct ? `<div class="postura-bar-wrap"><div class="postura-bar-fill" style="width:${Math.min(pctNum, 100)}%;background:${barColor}"></div></div>` : ''}
         ${p.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${p.notas}</p>` : ''}
         <div class="data-card-actions">
           <button class="btn-delete" onclick="deleteRecord('${KEYS.postura}','${p.id}',renderPostura)">🗑️</button>
@@ -537,7 +562,7 @@ window.saveAlimentacion = function() {
   };
   if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
   const list = DB.get(KEYS.alimentacion);
-  if (id) { const i = list.findIndex(x=>x.id===id); if(i>-1) list[i]=r; } else list.push(r);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
   DB.set(KEYS.alimentacion, list);
   closeModal('modalAlimentacion');
   renderAlimentacion();
@@ -545,7 +570,7 @@ window.saveAlimentacion = function() {
 };
 
 function renderAlimentacion() {
-  const list = DB.get(KEYS.alimentacion).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const list = DB.get(KEYS.alimentacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
   const el = document.getElementById('alimentacionList');
   if (!list.length) { el.innerHTML = emptyState('🌾', 'Sin registros de alimentación'); return; }
   el.innerHTML = list.map(r => `
@@ -558,7 +583,7 @@ function renderAlimentacion() {
         <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
         <div class="data-field"><span class="lbl">Cantidad</span><span class="val">${r.kg} kg</span></div>
         <div class="data-field"><span class="lbl">g/ave/día</span><span class="val">${r.grAve || '—'}</span></div>
-        <div class="data-field"><span class="lbl">Costo</span><span class="val">${r.costo ? '$'+r.costo.toLocaleString('es') : '—'}</span></div>
+        <div class="data-field"><span class="lbl">Costo</span><span class="val">${r.costo ? '$' + r.costo.toLocaleString('es') : '—'}</span></div>
         <div class="data-field"><span class="lbl">Proveedor</span><span class="val">${r.proveedor || '—'}</span></div>
       </div>
       <div class="data-card-actions">
@@ -572,20 +597,20 @@ function renderAlimentacion() {
 window.saveVacunacion = function() {
   const id = document.getElementById('vacunacionId').value;
   const r  = {
-    id:          id || uid(),
-    fecha:       document.getElementById('vacunacionFecha').value,
-    loteId:      document.getElementById('vacunacionLote').value,
-    vacuna:      document.getElementById('vacunaNombre').value.trim(),
-    via:         document.getElementById('vacunaVia').value,
-    dosis:       document.getElementById('vacunaDosis').value.trim(),
-    aplicador:   document.getElementById('vacunaAplicador').value.trim(),
-    proximaFecha:document.getElementById('vacunaProxima').value,
-    notas:       document.getElementById('vacunaNotas').value.trim(),
-    createdAt:   today(),
+    id:           id || uid(),
+    fecha:        document.getElementById('vacunacionFecha').value,
+    loteId:       document.getElementById('vacunacionLote').value,
+    vacuna:       document.getElementById('vacunaNombre').value.trim(),
+    via:          document.getElementById('vacunaVia').value,
+    dosis:        document.getElementById('vacunaDosis').value.trim(),
+    aplicador:    document.getElementById('vacunaAplicador').value.trim(),
+    proximaFecha: document.getElementById('vacunaProxima').value,
+    notas:        document.getElementById('vacunaNotas').value.trim(),
+    createdAt:    today(),
   };
   if (!r.loteId || !r.vacuna) return showToast('⚠️ Completá lote y vacuna');
   const list = DB.get(KEYS.vacunacion);
-  if (id) { const i = list.findIndex(x=>x.id===id); if(i>-1) list[i]=r; } else list.push(r);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
   DB.set(KEYS.vacunacion, list);
   closeModal('modalVacunacion');
   renderVacunacion();
@@ -594,10 +619,10 @@ window.saveVacunacion = function() {
 };
 
 function renderVacunacion() {
-  const list = DB.get(KEYS.vacunacion).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const list = DB.get(KEYS.vacunacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
   const el = document.getElementById('vacunacionList');
   if (!list.length) { el.innerHTML = emptyState('💉', 'Sin registros de vacunación'); return; }
-  const vias = { agua:'Agua de bebida', ocular:'Ocular', nasal:'Nasal', inyectable:'Inyectable', spray:'Spray', ala:'Punción alar' };
+  const vias = { agua: 'Agua de bebida', ocular: 'Ocular', nasal: 'Nasal', inyectable: 'Inyectable', spray: 'Spray', ala: 'Punción alar' };
   el.innerHTML = list.map(r => `
     <div class="data-card">
       <div class="data-card-header">
@@ -606,9 +631,9 @@ function renderVacunacion() {
       </div>
       <div class="data-card-body">
         <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
-        <div class="data-field"><span class="lbl">Vía</span><span class="val">${vias[r.via]||r.via}</span></div>
-        <div class="data-field"><span class="lbl">Dosis</span><span class="val">${r.dosis||'—'}</span></div>
-        <div class="data-field"><span class="lbl">Aplicador</span><span class="val">${r.aplicador||'—'}</span></div>
+        <div class="data-field"><span class="lbl">Vía</span><span class="val">${vias[r.via] || r.via}</span></div>
+        <div class="data-field"><span class="lbl">Dosis</span><span class="val">${r.dosis || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Aplicador</span><span class="val">${r.aplicador || '—'}</span></div>
         <div class="data-field"><span class="lbl">Próxima</span><span class="val" style="color:var(--gold)">${r.proximaFecha ? fmtDate(r.proximaFecha) : '—'}</span></div>
       </div>
       <div class="data-card-actions">
@@ -635,7 +660,7 @@ window.saveMedicacion = function() {
   };
   if (!r.loteId || !r.nombre) return showToast('⚠️ Completá lote y medicamento');
   const list = DB.get(KEYS.medicacion);
-  if (id) { const i = list.findIndex(x=>x.id===id); if(i>-1) list[i]=r; } else list.push(r);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
   DB.set(KEYS.medicacion, list);
   closeModal('modalMedicacion');
   renderMedicacion();
@@ -643,7 +668,7 @@ window.saveMedicacion = function() {
 };
 
 function renderMedicacion() {
-  const list = DB.get(KEYS.medicacion).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const list = DB.get(KEYS.medicacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
   const el = document.getElementById('medicacionList');
   if (!list.length) { el.innerHTML = emptyState('💊', 'Sin registros de medicación'); return; }
   el.innerHTML = list.map(r => `
@@ -654,10 +679,10 @@ function renderMedicacion() {
       </div>
       <div class="data-card-body">
         <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
-        <div class="data-field"><span class="lbl">Motivo</span><span class="val">${r.motivo||'—'}</span></div>
-        <div class="data-field"><span class="lbl">Dosis</span><span class="val">${r.dosis||'—'}</span></div>
-        <div class="data-field"><span class="lbl">Días</span><span class="val">${r.dias||'—'}</span></div>
-        <div class="data-field"><span class="lbl">Veterinario</span><span class="val">${r.vet||'—'}</span></div>
+        <div class="data-field"><span class="lbl">Motivo</span><span class="val">${r.motivo || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Dosis</span><span class="val">${r.dosis || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Días</span><span class="val">${r.dias || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Veterinario</span><span class="val">${r.vet || '—'}</span></div>
       </div>
       <div class="data-card-actions">
         <button class="btn-delete" onclick="deleteRecord('${KEYS.medicacion}','${r.id}',renderMedicacion)">🗑️</button>
@@ -670,14 +695,14 @@ function renderMedicacion() {
 window.saveMortandad = function() {
   const id = document.getElementById('mortandadId').value;
   const r  = {
-    id:         id || uid(),
-    fecha:      document.getElementById('mortandadFecha').value,
-    loteId:     document.getElementById('mortandadLote').value,
-    cantidad:   parseInt(document.getElementById('mortandadCantidad').value) || 0,
-    causa:      document.getElementById('mortandadCausa').value,
-    desc:       document.getElementById('mortandadDesc').value.trim(),
-    necropsia:  document.getElementById('mortandadNecropsia').value,
-    createdAt:  today(),
+    id:        id || uid(),
+    fecha:     document.getElementById('mortandadFecha').value,
+    loteId:    document.getElementById('mortandadLote').value,
+    cantidad:  parseInt(document.getElementById('mortandadCantidad').value) || 0,
+    causa:     document.getElementById('mortandadCausa').value,
+    desc:      document.getElementById('mortandadDesc').value.trim(),
+    necropsia: document.getElementById('mortandadNecropsia').value,
+    createdAt: today(),
   };
   if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
   if (!r.cantidad) return showToast('⚠️ Ingresá cantidad de bajas');
@@ -691,7 +716,7 @@ window.saveMortandad = function() {
   }
 
   const list = DB.get(KEYS.mortandad);
-  if (id) { const i = list.findIndex(x=>x.id===id); if(i>-1) list[i]=r; } else list.push(r);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
   DB.set(KEYS.mortandad, list);
   closeModal('modalMortandad');
   renderMortandad();
@@ -700,10 +725,13 @@ window.saveMortandad = function() {
 };
 
 function renderMortandad() {
-  const list = DB.get(KEYS.mortandad).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const list = DB.get(KEYS.mortandad).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
   const el = document.getElementById('mortandadList');
   if (!list.length) { el.innerHTML = emptyState('📋', 'Sin registros de mortandad'); return; }
-  const causas = { enfermedad:'Enfermedad', estres_calor:'Estrés calor', estres_frio:'Estrés frío', accidente:'Accidente', depredador:'Depredador', desconocida:'Desconocida', otra:'Otra' };
+  const causas = {
+    enfermedad: 'Enfermedad', estres_calor: 'Estrés calor', estres_frio: 'Estrés frío',
+    accidente: 'Accidente', depredador: 'Depredador', desconocida: 'Desconocida', otra: 'Otra'
+  };
   el.innerHTML = list.map(r => `
     <div class="data-card">
       <div class="data-card-header">
@@ -712,8 +740,8 @@ function renderMortandad() {
       </div>
       <div class="data-card-body">
         <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
-        <div class="data-field"><span class="lbl">Causa</span><span class="val">${causas[r.causa]||r.causa}</span></div>
-        <div class="data-field"><span class="lbl">Necropsia</span><span class="val">${r.necropsia==='si'?'✅ Sí':r.necropsia==='pendiente'?'⏳ Pendiente':'❌ No'}</span></div>
+        <div class="data-field"><span class="lbl">Causa</span><span class="val">${causas[r.causa] || r.causa}</span></div>
+        <div class="data-field"><span class="lbl">Necropsia</span><span class="val">${r.necropsia === 'si' ? '✅ Sí' : r.necropsia === 'pendiente' ? '⏳ Pendiente' : '❌ No'}</span></div>
       </div>
       ${r.desc ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${r.desc}</p>` : ''}
       <div class="data-card-actions">
@@ -747,7 +775,7 @@ function setupBackup() {
   document.getElementById('btnBackup').addEventListener('click', () => {
     const data = {};
     Object.values(KEYS).forEach(k => { data[k] = DB.get(k); });
-    data._version = 1;
+    data._version    = 1;
     data._exportDate = new Date().toISOString();
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

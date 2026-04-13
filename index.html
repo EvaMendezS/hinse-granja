@@ -54,11 +54,18 @@
       <!-- KPI CARDS -->
       <div class="kpi-grid" id="kpiGrid"></div>
 
+      <!-- BOTÓN RÁPIDO: REGISTRAR MUERTES -->
+      <div class="quick-action-bar">
+        <button class="btn-quick-muerte" onclick="openModal('modalMortandad')">
+          💀 Registrar Muertes
+        </button>
+      </div>
+
       <!-- CHARTS ROW -->
       <div class="charts-row">
         <div class="chart-card">
-          <h3>Postura últimos 7 días</h3>
-          <canvas id="chartPostura" height="160"></canvas>
+          <h3>Mortandad últimos 7 días</h3>
+          <canvas id="chartMortandad" height="160"></canvas>
         </div>
         <div class="chart-card">
           <h3>Distribución del lote</h3>
@@ -418,7 +425,7 @@
 <div id="modalMortandad" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-header">
-      <h3>📋 Registro de Mortandad</h3>
+      <h3>💀 Registro de Mortandad</h3>
       <button class="modal-close" onclick="closeModal('modalMortandad')">✕</button>
     </div>
     <div class="modal-body">
@@ -448,7 +455,7 @@
         </select>
       </div>
       <div class="field-group">
-        <label>Descripción</label>
+        <label>Descripción / Síntomas</label>
         <textarea id="mortandadDesc" rows="2" placeholder="Síntomas observados..."></textarea>
       </div>
       <div class="field-group">

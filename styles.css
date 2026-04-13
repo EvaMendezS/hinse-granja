@@ -472,3 +472,30 @@ input, select, textarea, button { font-family: inherit; }
 /* ===== POSTURA BAR ===== */
 .postura-bar-wrap { height: 6px; background: var(--bg3); border-radius: 99px; margin-top: 8px; overflow: hidden; }
 .postura-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); }
+/* ─── AGREGAR ESTO AL FINAL DE styles.css ─────────────────────
+   Botón de acción rápida "Registrar Muertes" en el Dashboard
+   ──────────────────────────────────────────────────────────── */
+
+.quick-action-bar {
+  margin: 0 0 16px 0;
+}
+
+.btn-quick-muerte {
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(192, 80, 80, 0.18), rgba(192, 80, 80, 0.08));
+  border: 1.5px solid rgba(192, 80, 80, 0.45);
+  border-radius: 12px;
+  color: #e87878;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.18s, border-color 0.18s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-quick-muerte:active {
+  transform: scale(0.97);
+  background: linear-gradient(135deg, rgba(192, 80, 80, 0.28), rgba(192, 80, 80, 0.14));
+}
