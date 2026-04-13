@@ -8,9 +8,9 @@
 
 // ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
-  get(key)        { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
-  set(key, val)   { localStorage.setItem(key, JSON.stringify(val)); },
-  getObj(key, def){ try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
+  get(key)         { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
+  set(key, val)    { localStorage.setItem(key, JSON.stringify(val)); },
+  getObj(key, def) { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
 };
 
 const KEYS = {
@@ -23,21 +23,9 @@ const KEYS = {
 };
 
 // ─── UTILIDADES ───────────────────────────────────────────────
-const uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const fmtDate = d => {
-  if (!d) return '—';
-  const [y,m,dia] = d.split('-');
-  return `${dia}/${m}/${y}`;
-};
-const today = () => new Date().toISOString().split('T')[0];
-const timeAgo = isoDate => {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const h = Math.floor(diff / 3.6e6);
-  if (h < 1)  return 'hace un momento';
-  if (h < 24) return `hace ${h}h`;
-  const d = Math.floor(h / 24);
-  return `hace ${d}d`;
-};
+const uid     = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const fmtDate = d => { if (!d) return '—'; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y}`; };
+const today   = () => new Date().toISOString().split('T')[0];
 
 function showToast(msg, ms = 2200) {
   const el = document.getElementById('toast');
@@ -72,10 +60,7 @@ function init() {
   renderMedicacion();
   renderMortandad();
 
-  // Auto-fill today's date in all date inputs
   document.querySelectorAll('input[type="date"]').forEach(i => { if (!i.value) i.value = today(); });
-
-  // Cálculo automático % postura
   document.getElementById('posturaHuevos').addEventListener('input', calcPosturaPct);
   document.getElementById('posturaLote').addEventListener('change', calcPosturaPct);
 }
@@ -96,20 +81,19 @@ function navigateTo(view) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const target = document.getElementById(`view-${view}`);
   if (target) target.classList.add('active');
-  if (view === 'dashboard') renderDashboard();
-  if (view === 'postura') fillLoteSelect('posturaLote');
+  if (view === 'dashboard')    renderDashboard();
+  if (view === 'postura')      fillLoteSelect('posturaLote');
   if (view === 'alimentacion') fillLoteSelect('alimentacionLote');
-  if (view === 'vacunacion') fillLoteSelect('vacunacionLote');
-  if (view === 'medicacion') fillLoteSelect('medicacionLote');
-  if (view === 'mortandad') fillLoteSelect('mortandadLote');
+  if (view === 'vacunacion')   fillLoteSelect('vacunacionLote');
+  if (view === 'medicacion')   fillLoteSelect('medicacionLote');
+  if (view === 'mortandad')    fillLoteSelect('mortandadLote');
 }
 
 // ─── MODALES ─────────────────────────────────────────────────
 window.openModal = function(id) {
   const modal = document.getElementById(id);
   modal.classList.remove('hidden');
-  document.querySelector('body').style.overflow = 'hidden';
-  // Fill selects
+  document.body.style.overflow = 'hidden';
   if (id === 'modalPostura')      fillLoteSelect('posturaLote');
   if (id === 'modalAlimentacion') fillLoteSelect('alimentacionLote');
   if (id === 'modalVacunacion')   fillLoteSelect('vacunacionLote');
@@ -119,11 +103,10 @@ window.openModal = function(id) {
 
 window.closeModal = function(id) {
   document.getElementById(id).classList.add('hidden');
-  document.querySelector('body').style.overflow = '';
+  document.body.style.overflow = '';
   clearModalForm(id);
 };
 
-// Close on overlay click
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); });
 });
@@ -134,7 +117,6 @@ function clearModalForm(modalId) {
     else el.value = '';
   });
   document.querySelectorAll(`#${modalId} input[type=hidden]`).forEach(el => el.value = '');
-  // Reset date fields to today
   document.querySelectorAll(`#${modalId} input[type=date]`).forEach(el => el.value = today());
 }
 
@@ -150,132 +132,97 @@ function fillLoteSelect(selectId) {
 // ─── DASHBOARD ────────────────────────────────────────────────
 function populateDashDate() {
   const el = document.getElementById('dashDate');
-  const d = new Date();
-  el.textContent = d.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+  const d  = new Date();
+  el.textContent = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 function renderDashboard() {
   renderKPIs();
-  renderCharts();
+  renderChartMortandad();
   renderAlertas();
   renderActividad();
 }
 
+// ─── KPIs ─────────────────────────────────────────────────────
 function renderKPIs() {
-  const lotes       = DB.get(KEYS.lotes);
+  const lotes      = DB.get(KEYS.lotes);
   const mortandades = DB.get(KEYS.mortandad);
+  const vacunas    = DB.get(KEYS.vacunacion);
+  const medicacion = DB.get(KEYS.medicacion);
 
-  const totalAves  = lotes.reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const ponedoras = lotes.filter(l => l.etapa === 'produccion').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const recrías   = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const totalAves = ponedoras + recrías;
   const totalBajas = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
-  // Muertes hoy
-  const todayStr   = today();
-  const muertesHoy = mortandades
-    .filter(m => m.fecha === todayStr)
-    .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
-
-  // Muertes últimos 7 días
   const ultimos7 = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(); d.setDate(d.getDate() - i);
     ultimos7.push(d.toISOString().split('T')[0]);
   }
-  const muertes7d = mortandades
-    .filter(m => ultimos7.includes(m.fecha))
-    .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
-
-  const kpis = [
-    {
-      icon: '🐔',
-      label: 'Total Aves',
-      value: totalAves.toLocaleString('es'),
-      color: 'var(--accent)',
-      delta: lotes.length ? `${lotes.length} lote(s)` : '',
-    },
-    {
-      icon: '💀',
-      label: 'Mortandad Total',
-      value: totalBajas.toLocaleString('es'),
-      color: 'var(--red)',
-      delta: totalAves > 0 ? `${((totalBajas / totalAves) * 100).toFixed(1)}% del lote` : '',
-    },
-    {
-      icon: '📅',
-      label: 'Muertes Hoy',
-      value: muertesHoy.toLocaleString('es'),
-      color: muertesHoy > 0 ? 'var(--red)' : 'var(--text3)',
-      delta: muertesHoy > 0 ? '⚠️ Registrar causa' : '✅ Sin bajas hoy',
-    },
-    {
-      icon: '📉',
-      label: 'Bajas (7 días)',
-      value: muertes7d.toLocaleString('es'),
-      color: muertes7d > 0 ? '#c05050' : 'var(--text3)',
-      delta: totalAves > 0 ? `${((muertes7d / totalAves) * 100).toFixed(2)}% del lote` : '',
-    },
-  ];
+  const vacReciente = vacunas.filter(v => ultimos7.includes(v.fecha)).length;
+  const medReciente = medicacion.filter(m => ultimos7.includes(m.fecha)).length;
 
   const grid = document.getElementById('kpiGrid');
-  grid.innerHTML = kpis.map((k, i) => `
-    <div class="kpi-card" style="--kpi-color:${k.color}; animation-delay:${i * 0.07}s">
-      <div class="kpi-icon">${k.icon}</div>
-      <div class="kpi-value">${k.value}</div>
-      <div class="kpi-label">${k.label}</div>
-      ${k.delta ? `<div class="kpi-delta">${k.delta}</div>` : ''}
+  grid.innerHTML = `
+    <div class="kpi-card" style="--kpi-color:var(--accent); animation-delay:0s">
+      <div class="kpi-icon">🐔</div>
+      <div class="kpi-value">${totalAves.toLocaleString('es')}</div>
+      <div class="kpi-label">Total Aves</div>
+      <div class="kpi-delta">${lotes.length} lote(s)</div>
     </div>
-  `).join('');
+    <div class="kpi-card" style="--kpi-color:var(--gold); animation-delay:0.07s">
+      <div class="kpi-icon">🥚</div>
+      <div class="kpi-value">${ponedoras.toLocaleString('es')}</div>
+      <div class="kpi-label">Ponedoras</div>
+      <div class="kpi-delta">${recrías.toLocaleString('es')} en recría</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--red); animation-delay:0.14s">
+      <div class="kpi-icon">💀</div>
+      <div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
+      <div class="kpi-label">Mortandad Total</div>
+      <div class="kpi-delta">${totalAves > 0 ? ((totalBajas / (totalAves + totalBajas)) * 100).toFixed(1) + '% del lote' : '—'}</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--blue); animation-delay:0.21s">
+      <div class="kpi-icon">💉</div>
+      <div class="kpi-value">${vacReciente + medReciente}</div>
+      <div class="kpi-label">Sanidad (7d)</div>
+      <div class="kpi-delta">${vacReciente} vacuna(s) · ${medReciente} med.</div>
+    </div>
+  `;
 }
 
-let chartMortandad = null;
-let chartLote      = null;
+// ─── CHART: barras simples, sin loop ─────────────────────────
+let _chart = null;
 
-// Destruye el chart y resetea el canvas completamente para evitar loops de animación
-function destroyChart(chartRef, canvasId) {
-  if (chartRef) {
-    chartRef.destroy();
-    chartRef = null;
-  }
-  const old = document.getElementById(canvasId);
-  if (old) {
-    const nuevo = document.createElement('canvas');
-    nuevo.id = canvasId;
-    nuevo.height = 160;
-    old.parentNode.replaceChild(nuevo, old);
-  }
-  return null;
-}
-
-function renderCharts() {
-  renderChartMortandad();
-  renderChartLote();
-}
-
-// ─── CHART: Mortandad últimos 7 días (reemplaza al de postura) ─
 function renderChartMortandad() {
-  chartMortandad = destroyChart(chartMortandad, 'chartMortandad');
+  if (_chart) { _chart.destroy(); _chart = null; }
 
   const mortandades = DB.get(KEYS.mortandad);
   const labels = [];
   const datos  = [];
 
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
+    const d = new Date();
+    d.setDate(d.getDate() - i);
     const str = d.toISOString().split('T')[0];
-    labels.push(d.toLocaleDateString('es-AR', { weekday: 'short' }));
-    const total = mortandades
-      .filter(m => m.fecha === str)
-      .reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
-    datos.push(total);
+    labels.push(d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }));
+    datos.push(
+      mortandades.filter(m => m.fecha === str).reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0)
+    );
   }
 
-  const ctx = document.getElementById('chartMortandad').getContext('2d');
-  chartMortandad = new Chart(ctx, {
+  const canvas = document.getElementById('chartMortandad');
+  if (!canvas) return;
+
+  _chart = new Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: {
       labels,
       datasets: [{
+        label: 'Bajas',
         data: datos,
-        backgroundColor: 'rgba(192,80,80,0.25)',
+        backgroundColor: 'rgba(192,80,80,0.30)',
         borderColor: '#c05050',
         borderWidth: 2,
         borderRadius: 6,
@@ -286,7 +233,8 @@ function renderChartMortandad() {
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color: '#8a6848', font: { size: 11 } }, grid: { display: false } },
-        y: { ticks: { color: '#8a6848', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
+        y: { ticks: { color: '#8a6848', font: { size: 11 }, stepSize: 1, precision: 0 },
+             grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
       },
       responsive: true,
       maintainAspectRatio: false,
@@ -294,101 +242,60 @@ function renderChartMortandad() {
   });
 }
 
-function renderChartLote() {
-  chartLote = destroyChart(chartLote, 'chartLote');
-
-  const lotes = DB.get(KEYS.lotes);
-  if (!lotes.length) return;
-
-  const labels = lotes.map(l => l.nombre.length > 12 ? l.nombre.slice(0, 12) + '…' : l.nombre);
-  const datos  = lotes.map(l => parseInt(l.cantidadActual) || 0);
-  const colors = ['#c8853a', '#d4a043', '#a86828', '#7a9ab5', '#c05050', '#8a6848'];
-
-  const ctx = document.getElementById('chartLote').getContext('2d');
-  chartLote = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data: datos, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }]
-    },
-    options: {
-      animation: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#c8a880', font: { size: 11 }, padding: 8 } }
-      },
-      responsive: true,
-      maintainAspectRatio: false,
-    }
-  });
-}
-
+// ─── ALERTAS ─────────────────────────────────────────────────
 function renderAlertas() {
-  const lotes   = DB.get(KEYS.lotes);
   const vacunas = DB.get(KEYS.vacunacion);
   const alertas = [];
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
-  // Vacunas próximas (< 7 días)
   vacunas.forEach(v => {
     if (!v.proximaFecha) return;
     const prox = new Date(v.proximaFecha); prox.setHours(0, 0, 0, 0);
     const diff = Math.ceil((prox - hoy) / 864e5);
-    if (diff >= 0 && diff <= 7) {
-      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: `En ${diff} día(s) — Lote: ${getLoteNombre(v.loteId)}` });
-    }
-    if (diff < 0 && diff > -3) {
-      alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: `Hace ${Math.abs(diff)} día(s) — Revisar!` });
-    }
+    if (diff >= 0 && diff <= 7)
+      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: ` — En ${diff} día(s)` });
+    if (diff < 0 && diff > -3)
+      alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: ` — Hace ${Math.abs(diff)} día(s)` });
   });
 
-  // Mortandad elevada hoy (más de 5 aves en cualquier lote)
-  const hoyStr = today();
-  const mortHoy = DB.get(KEYS.mortandad).filter(m => m.fecha === hoyStr);
-  mortHoy.forEach(m => {
-    if (parseInt(m.cantidad) >= 5) {
-      alertas.push({ icon: '🚨', title: `Alta mortandad hoy: ${m.cantidad} aves`, text: `Lote: ${getLoteNombre(m.loteId)} — Verificar causa` });
-    }
+  DB.get(KEYS.mortandad).filter(m => m.fecha === today()).forEach(m => {
+    if (parseInt(m.cantidad) >= 5)
+      alertas.push({ icon: '🚨', title: `Alta mortandad: ${m.cantidad} aves hoy`, text: ` — ${getLoteNombre(m.loteId)}` });
   });
 
   const el = document.getElementById('alertasList');
-  if (!alertas.length) {
-    el.innerHTML = '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">✅ Sin alertas pendientes</p>';
-    return;
-  }
-  el.innerHTML = alertas.map(a => `
-    <div class="alerta-item">
-      <span class="alerta-icon">${a.icon}</span>
-      <span class="alerta-text"><strong>${a.title}</strong>${a.text}</span>
-    </div>
-  `).join('');
+  el.innerHTML = alertas.length
+    ? alertas.map(a => `
+        <div class="alerta-item">
+          <span class="alerta-icon">${a.icon}</span>
+          <span class="alerta-text"><strong>${a.title}</strong>${a.text}</span>
+        </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">✅ Sin alertas pendientes</p>';
 }
 
+// ─── ACTIVIDAD ────────────────────────────────────────────────
 function renderActividad() {
   const items = [];
-  const addItems = (key, icon, label) => {
-    DB.get(key).slice(-5).reverse().forEach(r => {
-      items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' });
-    });
-  };
-  addItems(KEYS.postura,      '🥚', r => `Postura: ${r.huevos} huevos — ${getLoteNombre(r.loteId)}`);
-  addItems(KEYS.lotes,        '🐣', r => `Ingreso lote: ${r.nombre} (${r.cantidadActual} aves)`);
-  addItems(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna} — ${getLoteNombre(r.loteId)}`);
-  addItems(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
-  addItems(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
+  const push = (key, icon, label) =>
+    DB.get(key).slice(-5).reverse().forEach(r =>
+      items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
+    );
+  push(KEYS.postura,      '🥚', r => `Postura: ${r.huevos} huevos — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.lotes,        '🐣', r => `Ingreso: ${r.nombre} (${r.cantidadActual} aves)`);
+  push(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna} — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
 
   items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
   const el = document.getElementById('actividadList');
-  if (!items.length) {
-    el.innerHTML = '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aún no hay actividad registrada.</p>';
-    return;
-  }
-  el.innerHTML = items.slice(0, 8).map(it => `
-    <div class="actividad-item">
-      <span style="font-size:1rem">${it.icon}</span>
-      <span class="actividad-text">${it.text}</span>
-      <span class="actividad-time">${fmtDate(it.ts)}</span>
-    </div>
-  `).join('');
+  el.innerHTML = items.length
+    ? items.slice(0, 8).map(it => `
+        <div class="actividad-item">
+          <span style="font-size:1rem">${it.icon}</span>
+          <span class="actividad-text">${it.text}</span>
+          <span class="actividad-time">${fmtDate(it.ts)}</span>
+        </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aún no hay actividad registrada.</p>';
 }
 
 // ─── LOTES ────────────────────────────────────────────────────
@@ -409,7 +316,6 @@ window.saveLote = function() {
     createdAt:       today(),
   };
   if (!registro.nombre || !registro.cantidadInicial) return showToast('⚠️ Completá nombre y cantidad');
-
   const lotes = DB.get(KEYS.lotes);
   if (id) {
     const idx = lotes.findIndex(l => l.id === id);
@@ -426,9 +332,8 @@ window.saveLote = function() {
 
 function renderLote() {
   const lotes = DB.get(KEYS.lotes);
-  const el = document.getElementById('loteList');
+  const el    = document.getElementById('loteList');
   if (!lotes.length) { el.innerHTML = emptyState('🐣', 'Sin lotes registrados'); return; }
-
   el.innerHTML = lotes.slice().reverse().map(l => `
     <div class="data-card">
       <div class="data-card-header">
@@ -448,8 +353,7 @@ function renderLote() {
         <button class="btn-edit" onclick="editLote('${l.id}')">✏️ Editar</button>
         <button class="btn-delete" onclick="deleteLote('${l.id}')">🗑️ Eliminar</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 window.editLote = function(id) {
@@ -480,30 +384,28 @@ function calcPosturaPct() {
   const huevos = parseInt(document.getElementById('posturaHuevos').value) || 0;
   const lote   = DB.get(KEYS.lotes).find(l => l.id === loteId);
   const aves   = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
-  const pct    = aves > 0 ? ((huevos / aves) * 100).toFixed(1) : '—';
-  document.getElementById('posturaPorc').value = aves > 0 ? `${pct}%` : '— (registrá un lote primero)';
+  document.getElementById('posturaPorc').value = aves > 0
+    ? `${((huevos / aves) * 100).toFixed(1)}%`
+    : '— (registrá un lote primero)';
 }
 
 window.savePostura = function() {
   const id = document.getElementById('posturaId').value;
-  const registro = {
+  const r  = {
     id:        id || uid(),
     fecha:     document.getElementById('posturaFecha').value,
     loteId:    document.getElementById('posturaLote').value,
     huevos:    parseInt(document.getElementById('posturaHuevos').value) || 0,
-    rotos:     parseInt(document.getElementById('posturaRotos').value)  || 0,
+    rotos:     parseInt(document.getElementById('posturaRotos').value) || 0,
     notas:     document.getElementById('posturaNotas').value.trim(),
     createdAt: today(),
   };
-  if (!registro.loteId) return showToast('⚠️ Seleccioná un lote');
-
+  if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
   const list = DB.get(KEYS.postura);
-  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = registro; }
-  else list.push(registro);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
   DB.set(KEYS.postura, list);
   closeModal('modalPostura');
   renderPostura();
-  renderDashboard();
   showToast('✅ Postura registrada');
 };
 
@@ -513,10 +415,8 @@ window.renderPostura = function() {
   let list = DB.get(KEYS.postura);
   if (mes) list = list.filter(p => p.fecha && p.fecha.startsWith(mes));
   list = list.slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-
   const el = document.getElementById('posturaList');
   if (!list.length) { el.innerHTML = emptyState('🥚', 'Sin registros de postura'); return; }
-
   el.innerHTML = list.map(p => {
     const lote   = DB.get(KEYS.lotes).find(l => l.id === p.loteId);
     const aves   = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
@@ -531,17 +431,16 @@ window.renderPostura = function() {
         </div>
         <div class="data-card-body">
           <div class="data-field"><span class="lbl">Huevos</span><span class="val" style="color:var(--gold)">${p.huevos.toLocaleString('es')}</span></div>
-          <div class="data-field"><span class="lbl">Rotos/Descarte</span><span class="val">${p.rotos}</span></div>
+          <div class="data-field"><span class="lbl">Rotos</span><span class="val">${p.rotos}</span></div>
           <div class="data-field"><span class="lbl">% Postura</span><span class="val" style="color:${barColor}">${pct ? pct + '%' : '—'}</span></div>
-          <div class="data-field"><span class="lbl">Huevos netos</span><span class="val">${(p.huevos - p.rotos).toLocaleString('es')}</span></div>
+          <div class="data-field"><span class="lbl">Netos</span><span class="val">${(p.huevos - p.rotos).toLocaleString('es')}</span></div>
         </div>
         ${pct ? `<div class="postura-bar-wrap"><div class="postura-bar-fill" style="width:${Math.min(pctNum, 100)}%;background:${barColor}"></div></div>` : ''}
         ${p.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${p.notas}</p>` : ''}
         <div class="data-card-actions">
           <button class="btn-delete" onclick="deleteRecord('${KEYS.postura}','${p.id}',renderPostura)">🗑️</button>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 };
 
@@ -549,16 +448,16 @@ window.renderPostura = function() {
 window.saveAlimentacion = function() {
   const id = document.getElementById('alimentacionId').value;
   const r  = {
-    id:         id || uid(),
-    fecha:      document.getElementById('alimentacionFecha').value,
-    loteId:     document.getElementById('alimentacionLote').value,
-    tipo:       document.getElementById('alimentacionTipo').value.trim(),
-    kg:         parseFloat(document.getElementById('alimentacionKg').value) || 0,
-    grAve:      parseFloat(document.getElementById('alimentacionGrAve').value) || 0,
-    proveedor:  document.getElementById('alimentacionProveedor').value.trim(),
-    costo:      parseFloat(document.getElementById('alimentacionCosto').value) || 0,
-    notas:      document.getElementById('alimentacionNotas').value.trim(),
-    createdAt:  today(),
+    id:        id || uid(),
+    fecha:     document.getElementById('alimentacionFecha').value,
+    loteId:    document.getElementById('alimentacionLote').value,
+    tipo:      document.getElementById('alimentacionTipo').value.trim(),
+    kg:        parseFloat(document.getElementById('alimentacionKg').value) || 0,
+    grAve:     parseFloat(document.getElementById('alimentacionGrAve').value) || 0,
+    proveedor: document.getElementById('alimentacionProveedor').value.trim(),
+    costo:     parseFloat(document.getElementById('alimentacionCosto').value) || 0,
+    notas:     document.getElementById('alimentacionNotas').value.trim(),
+    createdAt: today(),
   };
   if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
   const list = DB.get(KEYS.alimentacion);
@@ -571,7 +470,7 @@ window.saveAlimentacion = function() {
 
 function renderAlimentacion() {
   const list = DB.get(KEYS.alimentacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const el = document.getElementById('alimentacionList');
+  const el   = document.getElementById('alimentacionList');
   if (!list.length) { el.innerHTML = emptyState('🌾', 'Sin registros de alimentación'); return; }
   el.innerHTML = list.map(r => `
     <div class="data-card">
@@ -589,8 +488,7 @@ function renderAlimentacion() {
       <div class="data-card-actions">
         <button class="btn-delete" onclick="deleteRecord('${KEYS.alimentacion}','${r.id}',renderAlimentacion)">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 // ─── VACUNACIÓN ───────────────────────────────────────────────
@@ -620,7 +518,7 @@ window.saveVacunacion = function() {
 
 function renderVacunacion() {
   const list = DB.get(KEYS.vacunacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const el = document.getElementById('vacunacionList');
+  const el   = document.getElementById('vacunacionList');
   if (!list.length) { el.innerHTML = emptyState('💉', 'Sin registros de vacunación'); return; }
   const vias = { agua: 'Agua de bebida', ocular: 'Ocular', nasal: 'Nasal', inyectable: 'Inyectable', spray: 'Spray', ala: 'Punción alar' };
   el.innerHTML = list.map(r => `
@@ -639,8 +537,7 @@ function renderVacunacion() {
       <div class="data-card-actions">
         <button class="btn-delete" onclick="deleteRecord('${KEYS.vacunacion}','${r.id}',renderVacunacion)">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 // ─── MEDICACIÓN ───────────────────────────────────────────────
@@ -669,7 +566,7 @@ window.saveMedicacion = function() {
 
 function renderMedicacion() {
   const list = DB.get(KEYS.medicacion).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const el = document.getElementById('medicacionList');
+  const el   = document.getElementById('medicacionList');
   if (!list.length) { el.innerHTML = emptyState('💊', 'Sin registros de medicación'); return; }
   el.innerHTML = list.map(r => `
     <div class="data-card">
@@ -687,8 +584,7 @@ function renderMedicacion() {
       <div class="data-card-actions">
         <button class="btn-delete" onclick="deleteRecord('${KEYS.medicacion}','${r.id}',renderMedicacion)">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 // ─── MORTANDAD ────────────────────────────────────────────────
@@ -704,11 +600,10 @@ window.saveMortandad = function() {
     necropsia: document.getElementById('mortandadNecropsia').value,
     createdAt: today(),
   };
-  if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
+  if (!r.loteId)  return showToast('⚠️ Seleccioná un lote');
   if (!r.cantidad) return showToast('⚠️ Ingresá cantidad de bajas');
 
-  // Actualizar cantidad actual del lote
-  const lotes = DB.get(KEYS.lotes);
+  const lotes   = DB.get(KEYS.lotes);
   const loteIdx = lotes.findIndex(l => l.id === r.loteId);
   if (loteIdx > -1) {
     lotes[loteIdx].cantidadActual = Math.max(0, (parseInt(lotes[loteIdx].cantidadActual) || 0) - r.cantidad);
@@ -726,11 +621,11 @@ window.saveMortandad = function() {
 
 function renderMortandad() {
   const list = DB.get(KEYS.mortandad).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const el = document.getElementById('mortandadList');
+  const el   = document.getElementById('mortandadList');
   if (!list.length) { el.innerHTML = emptyState('📋', 'Sin registros de mortandad'); return; }
   const causas = {
     enfermedad: 'Enfermedad', estres_calor: 'Estrés calor', estres_frio: 'Estrés frío',
-    accidente: 'Accidente', depredador: 'Depredador', desconocida: 'Desconocida', otra: 'Otra'
+    accidente: 'Accidente', depredador: 'Depredador', desconocida: 'Desconocida', otra: 'Otra',
   };
   el.innerHTML = list.map(r => `
     <div class="data-card">
@@ -747,16 +642,16 @@ function renderMortandad() {
       <div class="data-card-actions">
         <button class="btn-delete" onclick="deleteRecord('${KEYS.mortandad}','${r.id}',renderMortandad)">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-// ─── GENERIC DELETE ───────────────────────────────────────────
+// ─── DELETE GENÉRICO ─────────────────────────────────────────
 window.deleteRecord = function(key, id, rerenderFn) {
   if (!confirm('¿Eliminar este registro?')) return;
   DB.set(key, DB.get(key).filter(x => x.id !== id));
   rerenderFn();
-  if (key === KEYS.mortandad || key === KEYS.lotes || key === KEYS.postura) renderDashboard();
+  if ([KEYS.mortandad, KEYS.lotes, KEYS.vacunacion, KEYS.medicacion].includes(key))
+    renderDashboard();
   showToast('🗑️ Registro eliminado');
 };
 
@@ -765,7 +660,6 @@ function getLoteNombre(id) {
   const l = DB.get(KEYS.lotes).find(x => x.id === id);
   return l ? l.nombre : '(lote eliminado)';
 }
-
 function emptyState(icon, msg) {
   return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${msg}</p></div>`;
 }
@@ -777,7 +671,6 @@ function setupBackup() {
     Object.values(KEYS).forEach(k => { data[k] = DB.get(k); });
     data._version    = 1;
     data._exportDate = new Date().toISOString();
-
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -812,7 +705,7 @@ function setupBackup() {
   });
 }
 
-// ─── SERVICE WORKER REGISTRATION ─────────────────────────────
+// ─── SERVICE WORKER ───────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW:', err));

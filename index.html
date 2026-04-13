@@ -25,7 +25,7 @@
   </div>
 </div>
 
-<!-- APP SHELL -->
+<!-- APP -->
 <div id="app" class="hidden">
 
   <!-- TOPBAR -->
@@ -41,7 +41,7 @@
     </div>
   </header>
 
-  <!-- MAIN CONTENT -->
+  <!-- MAIN -->
   <main class="main-content">
 
     <!-- DASHBOARD -->
@@ -51,42 +51,26 @@
         <span class="view-date" id="dashDate"></span>
       </div>
 
-      <!-- KPI CARDS -->
       <div class="kpi-grid" id="kpiGrid"></div>
 
-      <!-- BOTÓN RÁPIDO: REGISTRAR MUERTES -->
-      <div class="quick-action-bar">
-        <button class="btn-quick-muerte" onclick="openModal('modalMortandad')">
-          💀 Registrar Muertes
-        </button>
+      <!-- UN SOLO CHART -->
+      <div class="chart-card" style="margin-bottom:16px">
+        <h3>Mortandad últimos 7 días</h3>
+        <canvas id="chartMortandad" height="160"></canvas>
       </div>
 
-      <!-- CHARTS ROW -->
-      <div class="charts-row">
-        <div class="chart-card">
-          <h3>Mortandad últimos 7 días</h3>
-          <canvas id="chartMortandad" height="160"></canvas>
-        </div>
-        <div class="chart-card">
-          <h3>Distribución del lote</h3>
-          <canvas id="chartLote" height="160"></canvas>
-        </div>
-      </div>
-
-      <!-- ALERTAS -->
       <div class="section-block" id="alertasBlock">
         <h3 class="section-title">⚠️ Alertas</h3>
         <div id="alertasList"></div>
       </div>
 
-      <!-- ACTIVIDAD RECIENTE -->
       <div class="section-block">
         <h3 class="section-title">🕐 Actividad Reciente</h3>
         <div id="actividadList"></div>
       </div>
     </section>
 
-    <!-- LOTE (Pollitas / Recría) -->
+    <!-- LOTE -->
     <section id="view-lote" class="view">
       <div class="view-header">
         <h2>Ingreso de Pollitas</h2>
@@ -145,7 +129,7 @@
 
   </main>
 
-  <!-- BOTTOM NAV -->
+  <!-- BOTTOM NAV — Postura reemplazada por Mortandad -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="dashboard">
       <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
@@ -153,8 +137,8 @@
     <button class="nav-btn" data-view="lote">
       <span class="nav-icon">🐣</span><span class="nav-label">Lote</span>
     </button>
-    <button class="nav-btn" data-view="postura">
-      <span class="nav-icon">🥚</span><span class="nav-label">Postura</span>
+    <button class="nav-btn" data-view="mortandad">
+      <span class="nav-icon">💀</span><span class="nav-label">Muertes</span>
     </button>
     <button class="nav-btn" data-view="alimentacion">
       <span class="nav-icon">🌾</span><span class="nav-label">Alimento</span>
@@ -164,15 +148,15 @@
     </button>
   </nav>
 
-  <!-- MENU MÁS -->
+  <!-- MENU MÁS (medicación y postura quedan en el menú secundario) -->
   <div id="masMenu" class="mas-menu hidden">
     <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
-    <button class="mas-btn" data-view="mortandad">💀 Mortandad</button>
+    <button class="mas-btn" data-view="postura">🥚 Postura</button>
   </div>
 
-</div><!-- /app -->
+</div>
 
-<!-- ===================== MODALES ===================== -->
+<!-- ============= MODALES ============= -->
 
 <!-- MODAL LOTE -->
 <div id="modalLote" class="modal-overlay hidden">
@@ -183,30 +167,12 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="loteId" />
-      <div class="field-group">
-        <label>Fecha de Ingreso</label>
-        <input type="date" id="loteFecha" />
-      </div>
-      <div class="field-group">
-        <label>Nombre / Lote</label>
-        <input type="text" id="loteNombre" placeholder="Ej: Lote A - Isa Brown" />
-      </div>
-      <div class="field-group">
-        <label>Cantidad de Pollitas</label>
-        <input type="number" id="loteCantidad" placeholder="0" />
-      </div>
-      <div class="field-group">
-        <label>Raza / Línea</label>
-        <input type="text" id="loteRaza" placeholder="Ej: Isa Brown, Lohmann" />
-      </div>
-      <div class="field-group">
-        <label>Semana de vida al ingreso</label>
-        <input type="number" id="loteSemana" placeholder="0" />
-      </div>
-      <div class="field-group">
-        <label>Procedencia / Proveedor</label>
-        <input type="text" id="loteProcedencia" placeholder="Nombre del proveedor" />
-      </div>
+      <div class="field-group"><label>Fecha de Ingreso</label><input type="date" id="loteFecha" /></div>
+      <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A - Isa Brown" /></div>
+      <div class="field-group"><label>Cantidad de Pollitas</label><input type="number" id="loteCantidad" placeholder="0" /></div>
+      <div class="field-group"><label>Raza / Línea</label><input type="text" id="loteRaza" placeholder="Ej: Isa Brown, Lohmann" /></div>
+      <div class="field-group"><label>Semana de vida al ingreso</label><input type="number" id="loteSemana" placeholder="0" /></div>
+      <div class="field-group"><label>Procedencia / Proveedor</label><input type="text" id="loteProcedencia" placeholder="Nombre del proveedor" /></div>
       <div class="field-group">
         <label>Etapa</label>
         <select id="loteEtapa">
@@ -214,10 +180,7 @@
           <option value="produccion">Producción (18+ semanas)</option>
         </select>
       </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea id="loteNotas" rows="2" placeholder="Observaciones..."></textarea>
-      </div>
+      <div class="field-group"><label>Notas</label><textarea id="loteNotas" rows="2" placeholder="Observaciones..."></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalLote')">Cancelar</button>
@@ -235,30 +198,12 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="posturaId" />
-      <div class="field-group">
-        <label>Fecha</label>
-        <input type="date" id="posturaFecha" />
-      </div>
-      <div class="field-group">
-        <label>Lote</label>
-        <select id="posturaLote"></select>
-      </div>
-      <div class="field-group">
-        <label>Huevos Recogidos</label>
-        <input type="number" id="posturaHuevos" placeholder="0" />
-      </div>
-      <div class="field-group">
-        <label>Huevos Rotos / Descarte</label>
-        <input type="number" id="posturaRotos" placeholder="0" value="0" />
-      </div>
-      <div class="field-group">
-        <label>% Postura calculado</label>
-        <input type="text" id="posturaPorc" readonly placeholder="Se calcula automático" class="readonly" />
-      </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea id="posturaNotas" rows="2" placeholder="Observaciones..."></textarea>
-      </div>
+      <div class="field-group"><label>Fecha</label><input type="date" id="posturaFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="posturaLote"></select></div>
+      <div class="field-group"><label>Huevos Recogidos</label><input type="number" id="posturaHuevos" placeholder="0" /></div>
+      <div class="field-group"><label>Huevos Rotos / Descarte</label><input type="number" id="posturaRotos" placeholder="0" value="0" /></div>
+      <div class="field-group"><label>% Postura calculado</label><input type="text" id="posturaPorc" readonly class="readonly" placeholder="Se calcula automático" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="posturaNotas" rows="2" placeholder="Observaciones..."></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalPostura')">Cancelar</button>
@@ -276,38 +221,14 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="alimentacionId" />
-      <div class="field-group">
-        <label>Fecha</label>
-        <input type="date" id="alimentacionFecha" />
-      </div>
-      <div class="field-group">
-        <label>Lote</label>
-        <select id="alimentacionLote"></select>
-      </div>
-      <div class="field-group">
-        <label>Tipo de Alimento</label>
-        <input type="text" id="alimentacionTipo" placeholder="Ej: Balanceado postura, maíz..." />
-      </div>
-      <div class="field-group">
-        <label>Cantidad (kg)</label>
-        <input type="number" id="alimentacionKg" placeholder="0" step="0.5" />
-      </div>
-      <div class="field-group">
-        <label>Consumo por ave (g/día)</label>
-        <input type="number" id="alimentacionGrAve" placeholder="0" step="1" />
-      </div>
-      <div class="field-group">
-        <label>Proveedor</label>
-        <input type="text" id="alimentacionProveedor" placeholder="Nombre del proveedor" />
-      </div>
-      <div class="field-group">
-        <label>Costo ($)</label>
-        <input type="number" id="alimentacionCosto" placeholder="0.00" step="0.01" />
-      </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea id="alimentacionNotas" rows="2"></textarea>
-      </div>
+      <div class="field-group"><label>Fecha</label><input type="date" id="alimentacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="alimentacionLote"></select></div>
+      <div class="field-group"><label>Tipo de Alimento</label><input type="text" id="alimentacionTipo" placeholder="Ej: Balanceado postura, maíz..." /></div>
+      <div class="field-group"><label>Cantidad (kg)</label><input type="number" id="alimentacionKg" placeholder="0" step="0.5" /></div>
+      <div class="field-group"><label>Consumo por ave (g/día)</label><input type="number" id="alimentacionGrAve" placeholder="0" /></div>
+      <div class="field-group"><label>Proveedor</label><input type="text" id="alimentacionProveedor" placeholder="Nombre del proveedor" /></div>
+      <div class="field-group"><label>Costo ($)</label><input type="number" id="alimentacionCosto" placeholder="0.00" step="0.01" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="alimentacionNotas" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalAlimentacion')">Cancelar</button>
@@ -325,18 +246,9 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="vacunacionId" />
-      <div class="field-group">
-        <label>Fecha</label>
-        <input type="date" id="vacunacionFecha" />
-      </div>
-      <div class="field-group">
-        <label>Lote</label>
-        <select id="vacunacionLote"></select>
-      </div>
-      <div class="field-group">
-        <label>Vacuna</label>
-        <input type="text" id="vacunaNombre" placeholder="Ej: Newcastle, Bronquitis..." />
-      </div>
+      <div class="field-group"><label>Fecha</label><input type="date" id="vacunacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="vacunacionLote"></select></div>
+      <div class="field-group"><label>Vacuna</label><input type="text" id="vacunaNombre" placeholder="Ej: Newcastle, Bronquitis..." /></div>
       <div class="field-group">
         <label>Vía de Aplicación</label>
         <select id="vacunaVia">
@@ -348,22 +260,10 @@
           <option value="ala">Punción alar</option>
         </select>
       </div>
-      <div class="field-group">
-        <label>Dosis</label>
-        <input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves" />
-      </div>
-      <div class="field-group">
-        <label>Aplicado por</label>
-        <input type="text" id="vacunaAplicador" placeholder="Nombre del responsable" />
-      </div>
-      <div class="field-group">
-        <label>Próxima dosis (fecha)</label>
-        <input type="date" id="vacunaProxima" />
-      </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea id="vacunaNotas" rows="2"></textarea>
-      </div>
+      <div class="field-group"><label>Dosis</label><input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves" /></div>
+      <div class="field-group"><label>Aplicado por</label><input type="text" id="vacunaAplicador" placeholder="Nombre del responsable" /></div>
+      <div class="field-group"><label>Próxima dosis (fecha)</label><input type="date" id="vacunaProxima" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="vacunaNotas" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalVacunacion')">Cancelar</button>
@@ -381,38 +281,14 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="medicacionId" />
-      <div class="field-group">
-        <label>Fecha inicio</label>
-        <input type="date" id="medicacionFecha" />
-      </div>
-      <div class="field-group">
-        <label>Lote</label>
-        <select id="medicacionLote"></select>
-      </div>
-      <div class="field-group">
-        <label>Medicamento</label>
-        <input type="text" id="medicamentoNombre" placeholder="Nombre del medicamento" />
-      </div>
-      <div class="field-group">
-        <label>Motivo / Diagnóstico</label>
-        <input type="text" id="medicamentoMotivo" placeholder="Ej: Coccidiosis, CRD..." />
-      </div>
-      <div class="field-group">
-        <label>Dosis</label>
-        <input type="text" id="medicamentoDosis" placeholder="Ej: 1ml/L agua" />
-      </div>
-      <div class="field-group">
-        <label>Duración (días)</label>
-        <input type="number" id="medicamentoDias" placeholder="0" />
-      </div>
-      <div class="field-group">
-        <label>Veterinario responsable</label>
-        <input type="text" id="medicamentoVet" placeholder="Nombre del veterinario" />
-      </div>
-      <div class="field-group">
-        <label>Notas</label>
-        <textarea id="medicamentoNotas" rows="2"></textarea>
-      </div>
+      <div class="field-group"><label>Fecha inicio</label><input type="date" id="medicacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="medicacionLote"></select></div>
+      <div class="field-group"><label>Medicamento</label><input type="text" id="medicamentoNombre" placeholder="Nombre del medicamento" /></div>
+      <div class="field-group"><label>Motivo / Diagnóstico</label><input type="text" id="medicamentoMotivo" placeholder="Ej: Coccidiosis, CRD..." /></div>
+      <div class="field-group"><label>Dosis</label><input type="text" id="medicamentoDosis" placeholder="Ej: 1ml/L agua" /></div>
+      <div class="field-group"><label>Duración (días)</label><input type="number" id="medicamentoDias" placeholder="0" /></div>
+      <div class="field-group"><label>Veterinario responsable</label><input type="text" id="medicamentoVet" placeholder="Nombre del veterinario" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="medicamentoNotas" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalMedicacion')">Cancelar</button>
@@ -430,18 +306,9 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="mortandadId" />
-      <div class="field-group">
-        <label>Fecha</label>
-        <input type="date" id="mortandadFecha" />
-      </div>
-      <div class="field-group">
-        <label>Lote</label>
-        <select id="mortandadLote"></select>
-      </div>
-      <div class="field-group">
-        <label>Cantidad de Bajas</label>
-        <input type="number" id="mortandadCantidad" placeholder="0" />
-      </div>
+      <div class="field-group"><label>Fecha</label><input type="date" id="mortandadFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="mortandadLote"></select></div>
+      <div class="field-group"><label>Cantidad de Bajas</label><input type="number" id="mortandadCantidad" placeholder="0" /></div>
       <div class="field-group">
         <label>Causa probable</label>
         <select id="mortandadCausa">
@@ -454,10 +321,7 @@
           <option value="otra">Otra</option>
         </select>
       </div>
-      <div class="field-group">
-        <label>Descripción / Síntomas</label>
-        <textarea id="mortandadDesc" rows="2" placeholder="Síntomas observados..."></textarea>
-      </div>
+      <div class="field-group"><label>Descripción / Síntomas</label><textarea id="mortandadDesc" rows="2" placeholder="Síntomas observados..."></textarea></div>
       <div class="field-group">
         <label>¿Se realizó necropsia?</label>
         <select id="mortandadNecropsia">
