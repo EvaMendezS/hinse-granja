@@ -8,24 +8,24 @@
 
 // ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
-  get(key)         { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
-  set(key, val)    { localStorage.setItem(key, JSON.stringify(val)); },
+  get(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
+  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
   getObj(key, def) { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
 };
 
 const KEYS = {
-  lotes:        'hinse_lotes',
-  postura:      'hinse_postura',
+  lotes: 'hinse_lotes',
+  postura: 'hinse_postura',
   alimentacion: 'hinse_alimentacion',
-  vacunacion:   'hinse_vacunacion',
-  medicacion:   'hinse_medicacion',
-  mortandad:    'hinse_mortandad',
+  vacunacion: 'hinse_vacunacion',
+  medicacion: 'hinse_medicacion',
+  mortandad: 'hinse_mortandad',
 };
 
 // ─── UTILIDADES ───────────────────────────────────────────────
-const uid     = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtDate = d => { if (!d) return '—'; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y}`; };
-const today   = () => new Date().toISOString().split('T')[0];
+const today = () => new Date().toISOString().split('T')[0];
 
 function showToast(msg, ms = 2200) {
   const el = document.getElementById('toast');
@@ -52,6 +52,7 @@ function init() {
   setupNav();
   setupBackup();
   populateDashDate();
+
   renderDashboard();
   renderLote();
   renderPostura();
@@ -60,12 +61,15 @@ function init() {
   renderMedicacion();
   renderMortandad();
 
-  document.querySelectorAll('input[type="date"]').forEach(i => { if (!i.value) i.value = today(); });
+  document.querySelectorAll('input[type="date"]').forEach(i => {
+    if (!i.value) i.value = today();
+  });
+
   document.getElementById('posturaHuevos').addEventListener('input', calcPosturaPct);
   document.getElementById('posturaLote').addEventListener('change', calcPosturaPct);
 }
 
-// ─── NAVEGACIÓN ───────────────────────────────────────────────
+// ─── NAV ─────────────────────────────────────────────────────
 function setupNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -82,25 +86,18 @@ function navigateTo(view) {
   const target = document.getElementById(`view-${view}`);
   if (target) target.classList.add('active');
 
-  if (view === 'dashboard')    renderDashboard();
-  if (view === 'postura')      fillLoteSelect('posturaLote');
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'postura') fillLoteSelect('posturaLote');
   if (view === 'alimentacion') fillLoteSelect('alimentacionLote');
-  if (view === 'vacunacion')   fillLoteSelect('vacunacionLote');
-  if (view === 'medicacion')   fillLoteSelect('medicacionLote');
-  if (view === 'mortandad')    fillLoteSelect('mortandadLote');
+  if (view === 'vacunacion') fillLoteSelect('vacunacionLote');
+  if (view === 'medicacion') fillLoteSelect('medicacionLote');
+  if (view === 'mortandad') fillLoteSelect('mortandadLote');
 }
 
-// ─── MODALES ─────────────────────────────────────────────────
+// ─── MODALES ────────────────────────────────────────────────
 window.openModal = function(id) {
-  const modal = document.getElementById(id);
-  modal.classList.remove('hidden');
+  document.getElementById(id).classList.remove('hidden');
   document.body.style.overflow = 'hidden';
-
-  if (id === 'modalPostura')      fillLoteSelect('posturaLote');
-  if (id === 'modalAlimentacion') fillLoteSelect('alimentacionLote');
-  if (id === 'modalVacunacion')   fillLoteSelect('vacunacionLote');
-  if (id === 'modalMedicacion')   fillLoteSelect('medicacionLote');
-  if (id === 'modalMortandad')    fillLoteSelect('mortandadLote');
 };
 
 window.closeModal = function(id) {
@@ -109,181 +106,228 @@ window.closeModal = function(id) {
   clearModalForm(id);
 };
 
-document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); });
-});
-
 function clearModalForm(modalId) {
-  document.querySelectorAll(`#${modalId} input:not([type=hidden]), #${modalId} select, #${modalId} textarea`).forEach(el => {
-    if (el.tagName === 'SELECT') el.selectedIndex = 0;
-    else el.value = '';
-  });
-  document.querySelectorAll(`#${modalId} input[type=hidden]`).forEach(el => el.value = '');
-  document.querySelectorAll(`#${modalId} input[type=date]`).forEach(el => el.value = today());
+  document.querySelectorAll(`#${modalId} input, #${modalId} select, #${modalId} textarea`)
+    .forEach(el => {
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else el.value = '';
+    });
 }
 
-function fillLoteSelect(selectId) {
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
+// ─── LOTE ───────────────────────────────────────────────────
+window.saveLote = function() {
+  const id = document.getElementById('loteId').value;
+
+  const registro = {
+    id: id || uid(),
+    fecha: document.getElementById('loteFecha').value,
+    nombre: document.getElementById('loteNombre').value.trim(),
+    cantidadInicial: parseInt(document.getElementById('loteCantidad').value) || 0,
+    cantidadActual: parseInt(document.getElementById('loteCantidad').value) || 0,
+    raza: document.getElementById('loteRaza').value.trim(),
+    semana: document.getElementById('loteSemana').value,
+    procedencia: document.getElementById('loteProcedencia').value.trim(),
+    etapa: document.getElementById('loteEtapa').value,
+    notas: document.getElementById('loteNotas').value.trim(),
+    createdAt: today(),
+  };
+
+  if (!registro.nombre || !registro.cantidadInicial)
+    return showToast('⚠️ Completá datos');
 
   const lotes = DB.get(KEYS.lotes);
-  sel.innerHTML = lotes.length
-    ? lotes.map(l => `<option value="${l.id}">${l.nombre} (${l.cantidadActual} aves)</option>`).join('')
-    : '<option value="">— Sin lotes registrados —</option>';
-}
 
-// ─── DASHBOARD ───────────────────────────────────────────────
-function populateDashDate() {
-  const el = document.getElementById('dashDate');
-  const d  = new Date();
-  el.textContent = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
+  if (id) {
+    const i = lotes.findIndex(l => l.id === id);
+    if (i > -1) lotes[i] = registro;
+  } else {
+    lotes.push(registro);
+  }
 
+  DB.set(KEYS.lotes, lotes);
+
+  closeModal('modalLote');
+  renderLote();
+  renderDashboard();
+  showToast('✅ Lote guardado');
+};
+
+// ─── POSTURA ───────────────────────────────────────────────
+window.savePostura = function() {
+  const r = {
+    id: document.getElementById('posturaId').value || uid(),
+    fecha: document.getElementById('posturaFecha').value,
+    loteId: document.getElementById('posturaLote').value,
+    huevos: parseInt(document.getElementById('posturaHuevos').value) || 0,
+    rotos: parseInt(document.getElementById('posturaRotos').value) || 0,
+    notas: document.getElementById('posturaNotas').value.trim(),
+    createdAt: today(),
+  };
+
+  const list = DB.get(KEYS.postura);
+  const i = list.findIndex(x => x.id === r.id);
+
+  if (i > -1) list[i] = r;
+  else list.push(r);
+
+  DB.set(KEYS.postura, list);
+
+  closeModal('modalPostura');
+  renderPostura();
+  showToast('✅ Postura guardada');
+};
+
+// ─── ALIMENTACIÓN ───────────────────────────────────────────
+window.saveAlimentacion = function() {
+  const r = {
+    id: document.getElementById('alimentacionId').value || uid(),
+    fecha: document.getElementById('alimentacionFecha').value,
+    loteId: document.getElementById('alimentacionLote').value,
+    tipo: document.getElementById('alimentacionTipo').value.trim(),
+    kg: parseFloat(document.getElementById('alimentacionKg').value) || 0,
+    grAve: parseFloat(document.getElementById('alimentacionGrAve').value) || 0,
+    proveedor: document.getElementById('alimentacionProveedor').value.trim(),
+    costo: parseFloat(document.getElementById('alimentacionCosto').value) || 0,
+    notas: document.getElementById('alimentacionNotas').value.trim(),
+    createdAt: today(),
+  };
+
+  const list = DB.get(KEYS.alimentacion);
+  const i = list.findIndex(x => x.id === r.id);
+
+  if (i > -1) list[i] = r;
+  else list.push(r);
+
+  DB.set(KEYS.alimentacion, list);
+
+  closeModal('modalAlimentacion');
+  renderAlimentacion();
+  showToast('✅ Alimentación guardada');
+};
+
+// ─── VACUNACIÓN ─────────────────────────────────────────────
+window.saveVacunacion = function() {
+  const r = {
+    id: document.getElementById('vacunacionId').value || uid(),
+    fecha: document.getElementById('vacunacionFecha').value,
+    loteId: document.getElementById('vacunacionLote').value,
+    vacuna: document.getElementById('vacunaNombre').value.trim(),
+    via: document.getElementById('vacunaVia').value,
+    dosis: document.getElementById('vacunaDosis').value.trim(),
+    aplicador: document.getElementById('vacunaAplicador').value.trim(),
+    proximaFecha: document.getElementById('vacunaProxima').value,
+    notas: document.getElementById('vacunaNotas').value.trim(),
+    createdAt: today(),
+  };
+
+  const list = DB.get(KEYS.vacunacion);
+  const i = list.findIndex(x => x.id === r.id);
+
+  if (i > -1) list[i] = r;
+  else list.push(r);
+
+  DB.set(KEYS.vacunacion, list);
+
+  closeModal('modalVacunacion');
+  renderVacunacion();
+  renderDashboard();
+  showToast('✅ Vacunación guardada');
+};
+
+// ─── MEDICACIÓN ─────────────────────────────────────────────
+window.saveMedicacion = function() {
+  const r = {
+    id: document.getElementById('medicacionId').value || uid(),
+    fecha: document.getElementById('medicacionFecha').value,
+    loteId: document.getElementById('medicacionLote').value,
+    nombre: document.getElementById('medicamentoNombre').value.trim(),
+    motivo: document.getElementById('medicamentoMotivo').value.trim(),
+    dosis: document.getElementById('medicamentoDosis').value.trim(),
+    dias: document.getElementById('medicamentoDias').value,
+    vet: document.getElementById('medicamentoVet').value.trim(),
+    notas: document.getElementById('medicamentoNotas').value.trim(),
+    createdAt: today(),
+  };
+
+  const list = DB.get(KEYS.medicacion);
+  const i = list.findIndex(x => x.id === r.id);
+
+  if (i > -1) list[i] = r;
+  else list.push(r);
+
+  DB.set(KEYS.medicacion, list);
+
+  closeModal('modalMedicacion');
+  renderMedicacion();
+  showToast('✅ Medicación guardada');
+};
+
+// ─── MORTANDAD ──────────────────────────────────────────────
+window.saveMortandad = function() {
+  const r = {
+    id: document.getElementById('mortandadId').value || uid(),
+    fecha: document.getElementById('mortandadFecha').value,
+    loteId: document.getElementById('mortandadLote').value,
+    cantidad: parseInt(document.getElementById('mortandadCantidad').value) || 0,
+    causa: document.getElementById('mortandadCausa').value,
+    desc: document.getElementById('mortandadDesc').value.trim(),
+    necropsia: document.getElementById('mortandadNecropsia').value,
+    createdAt: today(),
+  };
+
+  if (!r.loteId || !r.cantidad)
+    return showToast('⚠️ Datos incompletos');
+
+  const lotes = DB.get(KEYS.lotes);
+  const iL = lotes.findIndex(l => l.id === r.loteId);
+
+  if (iL > -1) {
+    lotes[iL].cantidadActual =
+      Math.max(0, (parseInt(lotes[iL].cantidadActual) || 0) - r.cantidad);
+
+    DB.set(KEYS.lotes, lotes);
+  }
+
+  const list = DB.get(KEYS.mortandad);
+  list.push(r);
+  DB.set(KEYS.mortandad, list);
+
+  closeModal('modalMortandad');
+  renderMortandad();
+  renderDashboard();
+  showToast('✅ Mortandad guardada');
+};
+
+// ─── RENDER DASHBOARD (SIN GRÁFICO) ─────────────────────────
 function renderDashboard() {
   renderKPIs();
   renderAlertas();
   renderActividad();
 }
 
-// ─── KPIs ─────────────────────────────────────────────────────
+// ─── KPIs ────────────────────────────────────────────────────
 function renderKPIs() {
-  const lotes      = DB.get(KEYS.lotes);
-  const mortandades = DB.get(KEYS.mortandad);
-  const vacunas    = DB.get(KEYS.vacunacion);
-  const medicacion = DB.get(KEYS.medicacion);
+  const lotes = DB.get(KEYS.lotes);
+  const mort = DB.get(KEYS.mortandad);
 
-  const ponedoras = lotes.filter(l => l.etapa === 'produccion').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const recrías   = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const totalAves = ponedoras + recrías;
-  const totalBajas = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
+  const totalAves = lotes.reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const bajas = mort.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
-  const ultimos7 = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    ultimos7.push(d.toISOString().split('T')[0]);
-  }
-
-  const vacReciente = vacunas.filter(v => ultimos7.includes(v.fecha)).length;
-  const medReciente = medicacion.filter(m => ultimos7.includes(m.fecha)).length;
-
-  const grid = document.getElementById('kpiGrid');
-  grid.innerHTML = `
-    <div class="kpi-card">
-      <div class="kpi-icon">🐔</div>
-      <div class="kpi-value">${totalAves.toLocaleString('es')}</div>
-      <div class="kpi-label">Total Aves</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-icon">🥚</div>
-      <div class="kpi-value">${ponedoras.toLocaleString('es')}</div>
-      <div class="kpi-label">Ponedoras</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-icon">💀</div>
-      <div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
-      <div class="kpi-label">Mortandad</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-icon">💉</div>
-      <div class="kpi-value">${vacReciente + medReciente}</div>
-      <div class="kpi-label">Sanidad (7d)</div>
-    </div>
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">🐔 ${totalAves} Aves</div>
+    <div class="kpi-card">💀 ${bajas} Bajas</div>
   `;
 }
 
-// ─── ALERTAS ─────────────────────────────────────────────────
-function renderAlertas() {
-  const vacunas = DB.get(KEYS.vacunacion);
-  const alertas = [];
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-
-  vacunas.forEach(v => {
-    if (!v.proximaFecha) return;
-    const prox = new Date(v.proximaFecha); prox.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((prox - hoy) / 864e5);
-
-    if (diff >= 0 && diff <= 7)
-      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: ` — En ${diff} día(s)` });
-
-    if (diff < 0 && diff > -3)
-      alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: ` — Hace ${Math.abs(diff)} día(s)` });
-  });
-
-  const el = document.getElementById('alertasList');
-  el.innerHTML = alertas.length
-    ? alertas.map(a => `
-        <div class="alerta-item">
-          <span>${a.icon}</span>
-          <span><strong>${a.title}</strong>${a.text}</span>
-        </div>`).join('')
-    : '<p>Sin alertas</p>';
-}
-
-// ─── ACTIVIDAD ────────────────────────────────────────────────
-function renderActividad() {
-  const items = [];
-
-  const push = (key, icon, label) =>
-    DB.get(key).slice(-5).reverse().forEach(r =>
-      items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
-    );
-
-  push(KEYS.postura, '🥚', r => `Postura: ${r.huevos} huevos`);
-  push(KEYS.lotes, '🐣', r => `Lote: ${r.nombre}`);
-  push(KEYS.vacunacion, '💉', r => `Vacuna: ${r.vacuna}`);
-  push(KEYS.mortandad, '💀', r => `Mortandad: ${r.cantidad}`);
-  push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg`);
-
-  items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
-
-  const el = document.getElementById('actividadList');
-  el.innerHTML = items.length
-    ? items.slice(0, 8).map(it => `
-      <div>
-        <span>${it.icon}</span>
-        <span>${it.text}</span>
-      </div>`).join('')
-    : '<p>Sin actividad</p>';
-}
-
-// ─── LOTES ────────────────────────────────────────────────────
-// (TODO EL RESTO SE MANTIENE IGUAL - sin cambios funcionales)
-
-// ─── POSTURA ─────────────────────────────────────────────────
-// ─── ALIMENTACIÓN ─────────────────────────────────────────────
-// ─── VACUNACIÓN ───────────────────────────────────────────────
-// ─── MEDICACIÓN ───────────────────────────────────────────────
-// ─── MORTANDAD ────────────────────────────────────────────────
-// 👉 (sin cambios)
-
-// ─── DELETE GENÉRICO ─────────────────────────────────────────
-window.deleteRecord = function(key, id, rerenderFn) {
-  if (!confirm('¿Eliminar este registro?')) return;
-  DB.set(key, DB.get(key).filter(x => x.id !== id));
-  rerenderFn();
-  renderDashboard();
-  showToast('🗑️ Eliminado');
-};
-
-// ─── HELPERS ─────────────────────────────────────────────────
+// ─── HELPERS ────────────────────────────────────────────────
 function getLoteNombre(id) {
   const l = DB.get(KEYS.lotes).find(x => x.id === id);
   return l ? l.nombre : '(lote eliminado)';
 }
 
-function emptyState(icon, msg) {
-  return `<div><span>${icon}</span><p>${msg}</p></div>`;
-}
-
-// ─── BACKUP / RESTORE ─────────────────────────────────────────
-// (SIN CAMBIOS)
-
-// ─── SERVICE WORKER ───────────────────────────────────────────
+// ─── SERVICE WORKER ─────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   });
 }
