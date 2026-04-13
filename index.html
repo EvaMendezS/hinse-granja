@@ -2,19 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <meta name="theme-color" content="#1a2e1a" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Hinse" />
 
-  <title>Hinse — Granja Avícola</title>
+  <title>Hinse</title>
 
-  <link rel="manifest" href="manifest.json" />
-
-  <!-- FIX ICONOS -->
   <link rel="icon" href="./icon-192.png" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
 
@@ -23,179 +17,40 @@
 
 <body>
 
-<!-- SPLASH -->
-<div id="splash">
-  <div class="splash-inner">
-    <div class="splash-egg">🥚</div>
-    <h1>Hinse</h1>
-    <p>Granja Avícola</p>
-    <div class="splash-bar"><div class="splash-fill"></div></div>
-  </div>
-</div>
+<div id="splash">Cargando...</div>
 
-<!-- APP -->
 <div id="app" class="hidden">
 
-  <!-- TOPBAR -->
-  <header class="topbar">
-    <div class="topbar-left">
-      <span class="topbar-icon">🐔</span>
-      <span class="topbar-title">Hinse</span>
-    </div>
-
-    <div class="topbar-right">
-      <button class="icon-btn" id="btnBackup" title="Backup">💾</button>
-      <button class="icon-btn" id="btnRestore" title="Restaurar">📂</button>
-      <input type="file" id="fileRestore" accept=".json" style="display:none" />
-    </div>
+  <header>
+    <button id="btnBackup">Backup</button>
   </header>
 
-  <!-- MAIN -->
-  <main class="main-content">
+  <main>
 
-    <!-- DASHBOARD -->
     <section id="view-dashboard" class="view active">
-
-      <div class="view-header">
-        <h2>Dashboard</h2>
-        <span class="view-date" id="dashDate"></span>
-      </div>
-
-      <!-- KPIs -->
-      <div class="kpi-grid" id="kpiGrid"></div>
-
-      <!-- ALERTAS -->
-      <div class="section-block">
-        <h3 class="section-title">⚠️ Alertas</h3>
-        <div id="alertasList"></div>
-      </div>
-
-      <!-- ACTIVIDAD -->
-      <div class="section-block">
-        <h3 class="section-title">🕐 Actividad Reciente</h3>
-        <div id="actividadList"></div>
-      </div>
-
+      <div id="kpiGrid"></div>
+      <div id="alertasList"></div>
     </section>
 
-    <!-- LOTE -->
-    <section id="view-lote" class="view">
-      <div class="view-header">
-        <h2>Ingreso de Pollitas</h2>
-        <button class="btn-primary" onclick="openModal('modalLote')">+ Nuevo Ingreso</button>
-      </div>
-      <div id="loteList" class="card-list"></div>
-    </section>
-
-    <!-- POSTURA -->
-    <section id="view-postura" class="view">
-      <div class="view-header">
-        <h2>Registro de Postura</h2>
-        <button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button>
-      </div>
-
-      <div class="filter-bar">
-        <input type="month" id="filtroPosturaMes" onchange="renderPostura()" />
-      </div>
-
-      <div id="posturaList" class="card-list"></div>
-    </section>
-
-    <!-- ALIMENTACIÓN -->
-    <section id="view-alimentacion" class="view">
-      <div class="view-header">
-        <h2>Alimentación</h2>
-        <button class="btn-primary" onclick="openModal('modalAlimentacion')">+ Registrar</button>
-      </div>
-      <div id="alimentacionList" class="card-list"></div>
-    </section>
-
-    <!-- VACUNACIÓN -->
-    <section id="view-vacunacion" class="view">
-      <div class="view-header">
-        <h2>Vacunación</h2>
-        <button class="btn-primary" onclick="openModal('modalVacunacion')">+ Registrar</button>
-      </div>
-      <div id="vacunacionList" class="card-list"></div>
-    </section>
-
-    <!-- MEDICACIÓN -->
-    <section id="view-medicacion" class="view">
-      <div class="view-header">
-        <h2>Medicación</h2>
-        <button class="btn-primary" onclick="openModal('modalMedicacion')">+ Registrar</button>
-      </div>
-      <div id="medicacionList" class="card-list"></div>
-    </section>
-
-    <!-- MORTANDAD -->
-    <section id="view-mortandad" class="view">
-      <div class="view-header">
-        <h2>Mortandad</h2>
-        <button class="btn-primary" onclick="openModal('modalMortandad')">+ Registrar</button>
-      </div>
-      <div id="mortandadList" class="card-list"></div>
-    </section>
+    <section id="view-lote" class="view"></section>
+    <section id="view-postura" class="view"></section>
+    <section id="view-alimentacion" class="view"></section>
+    <section id="view-vacunacion" class="view"></section>
+    <section id="view-medicacion" class="view"></section>
+    <section id="view-mortandad" class="view"></section>
 
   </main>
 
-  <!-- NAV -->
-  <nav class="bottom-nav">
-
-    <button class="nav-btn active" data-view="dashboard">
-      <span class="nav-icon">📊</span>
-      <span class="nav-label">Inicio</span>
-    </button>
-
-    <button class="nav-btn" data-view="lote">
-      <span class="nav-icon">🐣</span>
-      <span class="nav-label">Lote</span>
-    </button>
-
-    <button class="nav-btn" data-view="mortandad">
-      <span class="nav-icon">💀</span>
-      <span class="nav-label">Muertes</span>
-    </button>
-
-    <button class="nav-btn" data-view="alimentacion">
-      <span class="nav-icon">🌾</span>
-      <span class="nav-label">Alimento</span>
-    </button>
-
-    <button class="nav-btn" data-view="vacunacion">
-      <span class="nav-icon">💉</span>
-      <span class="nav-label">Sanidad</span>
-    </button>
-
+  <nav>
+    <button class="nav-btn" data-view="dashboard">Inicio</button>
+    <button class="nav-btn" data-view="lote">Lote</button>
+    <button class="nav-btn" data-view="mortandad">Muertes</button>
   </nav>
 
 </div>
 
-<!-- MODALES (NO TOCADOS) -->
+<div id="toast"></div>
 
-<!-- LOTE -->
-<div id="modalLote" class="modal-overlay hidden"></div>
-
-<!-- POSTURA -->
-<div id="modalPostura" class="modal-overlay hidden"></div>
-
-<!-- ALIMENTACION -->
-<div id="modalAlimentacion" class="modal-overlay hidden"></div>
-
-<!-- VACUNACION -->
-<div id="modalVacunacion" class="modal-overlay hidden"></div>
-
-<!-- MEDICACION -->
-<div id="modalMedicacion" class="modal-overlay hidden"></div>
-
-<!-- MORTANDAD -->
-<div id="modalMortandad" class="modal-overlay hidden"></div>
-
-<!-- TOAST -->
-<div id="toast" class="toast hidden"></div>
-
-<!-- SCRIPTS -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 
 </body>
