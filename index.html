@@ -2,139 +2,97 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#1a2e1a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Hinse" />
-  <title>Hinse — Granja Avícola</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hinse Granja</title>
 
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon-192.png" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
 
-<!-- SPLASH -->
-<div id="splash">
-  <div class="splash-inner">
-    <div class="splash-egg">🥚</div>
-    <h1>Hinse</h1>
-    <p>Granja Avícola</p>
-    <div class="splash-bar"><div class="splash-fill"></div></div>
+<div id="app">
+
+  <!-- TOP -->
+  <header class="topbar">
+    <h2>🐔 Hinse</h2>
+  </header>
+
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view active">
+
+    <div id="kpiGrid"></div>
+
+    <!-- ❌ SIN GRAFICO -->
+
+    <h3>Actividad</h3>
+    <div id="actividadList"></div>
+
+  </section>
+
+  <!-- LOTES -->
+  <section id="view-lote" class="view">
+    <h2>Ingresos</h2>
+    <button onclick="openModal('modalLote')">+ Nuevo</button>
+    <div id="loteList"></div>
+  </section>
+
+  <!-- VACUNACION -->
+  <section id="view-vacunacion" class="view">
+    <h2>Vacunación</h2>
+    <button onclick="openModal('modalVacunacion')">+ Registrar</button>
+    <div id="vacunacionList"></div>
+  </section>
+
+  <!-- MORTANDAD -->
+  <section id="view-mortandad" class="view">
+    <h2>Mortandad</h2>
+    <button onclick="openModal('modalMortandad')">+ Registrar</button>
+    <div id="mortandadList"></div>
+  </section>
+
+</div>
+
+<!-- ================= MODALES ================= -->
+
+<!-- LOTE -->
+<div id="modalLote" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Lote</h3>
+    <input type="hidden" id="loteId">
+    <input type="date" id="loteFecha">
+    <input type="text" id="loteNombre" placeholder="Nombre">
+    <input type="number" id="loteCantidad" placeholder="Cantidad">
+    <button onclick="saveLote()">Guardar</button>
+    <button onclick="closeModal('modalLote')">Cerrar</button>
   </div>
 </div>
 
-<!-- APP -->
-<div id="app" class="hidden">
-
-  <!-- TOPBAR -->
-  <header class="topbar">
-    <div class="topbar-left">
-      <span class="topbar-icon">🐔</span>
-      <span class="topbar-title">Hinse</span>
-    </div>
-    <div class="topbar-right">
-      <button class="icon-btn" id="btnBackup">💾</button>
-      <button class="icon-btn" id="btnRestore">📂</button>
-      <input type="file" id="fileRestore" accept=".json" style="display:none" />
-    </div>
-  </header>
-
-  <!-- MAIN -->
-  <main class="main-content">
-
-    <!-- DASHBOARD -->
-    <section id="view-dashboard" class="view active">
-      <div class="view-header">
-        <h2>Dashboard</h2>
-        <span class="view-date" id="dashDate"></span>
-      </div>
-
-      <!-- SOLO 3 KPI -->
-      <div class="kpi-grid" id="kpiGrid"></div>
-
-      <div class="section-block" id="alertasBlock">
-        <h3 class="section-title">⚠️ Alertas</h3>
-        <div id="alertasList"></div>
-      </div>
-
-      <div class="section-block">
-        <h3 class="section-title">🕐 Actividad Reciente</h3>
-        <div id="actividadList"></div>
-      </div>
-    </section>
-
-    <!-- LOTE -->
-    <section id="view-lote" class="view">
-      <div class="view-header">
-        <h2>Ingreso de Pollitas</h2>
-        <button class="btn-primary" onclick="openModal('modalLote')">+ Nuevo Ingreso</button>
-      </div>
-      <div id="loteList"></div>
-    </section>
-
-    <!-- POSTURA -->
-    <section id="view-postura" class="view">
-      <div class="view-header">
-        <h2>Registro de Postura</h2>
-        <button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button>
-      </div>
-      <div id="posturaList"></div>
-    </section>
-
-    <!-- ALIMENTACIÓN -->
-    <section id="view-alimentacion" class="view">
-      <div class="view-header">
-        <h2>Alimentación</h2>
-        <button class="btn-primary" onclick="openModal('modalAlimentacion')">+ Registrar</button>
-      </div>
-      <div id="alimentacionList"></div>
-    </section>
-
-    <!-- VACUNACIÓN -->
-    <section id="view-vacunacion" class="view">
-      <div class="view-header">
-        <h2>Vacunación</h2>
-        <button class="btn-primary" onclick="openModal('modalVacunacion')">+ Registrar</button>
-      </div>
-      <div id="vacunacionList"></div>
-    </section>
-
-    <!-- MEDICACIÓN -->
-    <section id="view-medicacion" class="view">
-      <div class="view-header">
-        <h2>Medicación</h2>
-        <button class="btn-primary" onclick="openModal('modalMedicacion')">+ Registrar</button>
-      </div>
-      <div id="medicacionList"></div>
-    </section>
-
-    <!-- MORTANDAD -->
-    <section id="view-mortandad" class="view">
-      <div class="view-header">
-        <h2>Mortandad</h2>
-        <button class="btn-primary" onclick="openModal('modalMortandad')">+ Registrar</button>
-      </div>
-      <div id="mortandadList"></div>
-    </section>
-
-  </main>
-
-  <!-- NAV -->
-  <nav class="bottom-nav">
-    <button class="nav-btn active" data-view="dashboard">📊 Inicio</button>
-    <button class="nav-btn" data-view="lote">🐣 Lote</button>
-    <button class="nav-btn" data-view="mortandad">💀 Muertes</button>
-    <button class="nav-btn" data-view="alimentacion">🌾 Alimento</button>
-    <button class="nav-btn" data-view="vacunacion">💉 Sanidad</button>
-  </nav>
-
+<!-- VACUNACION -->
+<div id="modalVacunacion" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Vacunación</h3>
+    <input type="date" id="vacunacionFecha">
+    <select id="vacunacionLote"></select>
+    <input type="text" id="vacunaNombre" placeholder="Vacuna">
+    <input type="date" id="vacunaProxima">
+    <button onclick="saveVacunacion()">Guardar</button>
+    <button onclick="closeModal('modalVacunacion')">Cerrar</button>
+  </div>
 </div>
 
-<div id="toast" class="toast hidden"></div>
+<!-- MORTANDAD -->
+<div id="modalMortandad" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Mortandad</h3>
+    <input type="date" id="mortandadFecha">
+    <select id="mortandadLote"></select>
+    <input type="number" id="mortandadCantidad">
+    <button onclick="saveMortandad()">Guardar</button>
+    <button onclick="closeModal('modalMortandad')">Cerrar</button>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

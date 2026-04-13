@@ -1,200 +1,132 @@
-/* ============================================================
-   Hinse — Control Avícola
-   app.js — versión limpia dashboard simplificado
-   ============================================================ */
-
 'use strict';
 
-// ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
-  get(key)         { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
-  set(key, val)    { localStorage.setItem(key, JSON.stringify(val)); },
-  getObj(key, def) { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
+  get: k => JSON.parse(localStorage.getItem(k)) || [],
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v))
 };
 
 const KEYS = {
-  lotes:        'hinse_lotes',
-  postura:      'hinse_postura',
-  alimentacion: 'hinse_alimentacion',
-  vacunacion:   'hinse_vacunacion',
-  medicacion:   'hinse_medicacion',
-  mortandad:    'hinse_mortandad',
+  lotes: "lotes",
+  vacunacion: "vacunacion",
+  mortandad: "mortandad"
 };
 
-// ─── UTILIDADES ───────────────────────────────────────────────
-const uid     = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const fmtDate = d => { if (!d) return '—'; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y}`; };
-const today   = () => new Date().toISOString().split('T')[0];
+const uid = () => Date.now().toString(36);
 
-function showToast(msg, ms = 2200) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.add('hidden'), ms);
+function today() {
+  return new Date().toISOString().split("T")[0];
 }
 
-// ─── SPLASH ───────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => {
-    document.getElementById('splash').style.opacity = '0';
-    setTimeout(() => {
-      document.getElementById('splash').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
-      init();
-    }, 500);
-  }, 2000);
+/* =========================
+   MODALES (FIX CRÍTICO)
+========================= */
+
+window.openModal = function (id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove("hidden");
+};
+
+window.closeModal = function (id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add("hidden");
+};
+
+/* =========================
+   INIT
+========================= */
+
+window.addEventListener("DOMContentLoaded", () => {
+  renderAll();
 });
 
-// ─── INIT ─────────────────────────────────────────────────────
-function init() {
-  setupNav();
-  setupBackup();
-  populateDashDate();
+/* =========================
+   LOTES
+========================= */
 
-  renderDashboard();
+window.saveLote = function () {
+  const lote = {
+    id: uid(),
+    fecha: document.getElementById("loteFecha").value,
+    nombre: document.getElementById("loteNombre").value,
+    cantidad: parseInt(document.getElementById("loteCantidad").value) || 0
+  };
 
-  renderLote();
-  renderPostura();
-  renderAlimentacion();
+  if (!lote.nombre) return alert("Falta nombre");
+
+  const data = DB.get(KEYS.lotes);
+  data.push(lote);
+  DB.set(KEYS.lotes, data);
+
+  closeModal("modalLote");
+  renderLotes();
+};
+
+function renderLotes() {
+  const data = DB.get(KEYS.lotes);
+  document.getElementById("loteList").innerHTML =
+    data.map(l => `<p>${l.nombre} - ${l.cantidad}</p>`).join("");
+}
+
+/* =========================
+   VACUNACION
+========================= */
+
+window.saveVacunacion = function () {
+  const r = {
+    id: uid(),
+    fecha: document.getElementById("vacunacionFecha").value,
+    lote: document.getElementById("vacunacionLote").value,
+    vacuna: document.getElementById("vacunaNombre").value
+  };
+
+  const data = DB.get(KEYS.vacunacion);
+  data.push(r);
+  DB.set(KEYS.vacunacion, data);
+
+  closeModal("modalVacunacion");
   renderVacunacion();
-  renderMedicacion();
+};
+
+function renderVacunacion() {
+  const data = DB.get(KEYS.vacunacion);
+  document.getElementById("vacunacionList").innerHTML =
+    data.map(v => `<p>${v.vacuna}</p>`).join("");
+}
+
+/* =========================
+   MORTANDAD
+========================= */
+
+window.saveMortandad = function () {
+  const r = {
+    id: uid(),
+    fecha: document.getElementById("mortandadFecha").value,
+    lote: document.getElementById("mortandadLote").value,
+    cantidad: parseInt(document.getElementById("mortandadCantidad").value) || 0
+  };
+
+  const data = DB.get(KEYS.mortandad);
+  data.push(r);
+  DB.set(KEYS.mortandad, data);
+
+  closeModal("modalMortandad");
   renderMortandad();
+};
 
-  document.querySelectorAll('input[type="date"]').forEach(i => {
-    if (!i.value) i.value = today();
-  });
+function renderMortandad() {
+  const data = DB.get(KEYS.mortandad);
+  document.getElementById("mortandadList").innerHTML =
+    data.map(m => `<p>💀 ${m.cantidad}</p>`).join("");
 }
 
-// ─── NAV ──────────────────────────────────────────────────────
-function setupNav() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      navigateTo(view);
+/* =========================
+   DASHBOARD
+========================= */
 
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
-}
-
-function navigateTo(view) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  const target = document.getElementById(`view-${view}`);
-  if (target) target.classList.add('active');
-
-  if (view === 'dashboard') renderDashboard();
-}
-
-// ─── DASHBOARD ────────────────────────────────────────────────
-function renderDashboard() {
-  renderKPIs();
-  renderAlertas();
-  renderActividad();
-}
-
-// ─── KPIs SIMPLES ─────────────────────────────────────────────
-function renderKPIs() {
-  const lotes = DB.get(KEYS.lotes);
-  const mortandades = DB.get(KEYS.mortandad);
-  const vacunas = DB.get(KEYS.vacunacion);
-
-  const totalAves = lotes.reduce((s, l) =>
-    s + (parseInt(l.cantidadActual) || 0), 0
-  );
-
-  const totalBajas = mortandades.reduce((s, m) =>
-    s + (parseInt(m.cantidad) || 0), 0
-  );
-
-  const totalVacunas = vacunas.length;
-
-  const grid = document.getElementById('kpiGrid');
-
-  grid.innerHTML = `
-    <div class="kpi-card">
-      <div class="kpi-value">${totalAves}</div>
-      <div class="kpi-label">Cantidad total</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-value">${totalBajas}</div>
-      <div class="kpi-label">Mortandad</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-value">${totalVacunas}</div>
-      <div class="kpi-label">Vacunación</div>
-    </div>
-  `;
-}
-
-// ─── ALERTAS (SIN CAMBIOS FUNCIONALES) ───────────────────────
-function renderAlertas() {
-  const el = document.getElementById('alertasList');
-  el.innerHTML = '<p style="color:#999">Sin alertas</p>';
-}
-
-// ─── ACTIVIDAD (SIN CAMBIOS LÓGICA) ──────────────────────────
-function renderActividad() {
-  const items = [];
-
-  const push = (key, icon, label) =>
-    DB.get(key).slice(-5).reverse().forEach(r =>
-      items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
-    );
-
-  push(KEYS.postura, '🥚', r => `Postura: ${r.huevos} huevos`);
-  push(KEYS.lotes, '🐣', r => `Ingreso: ${r.nombre}`);
-  push(KEYS.vacunacion, '💉', r => `Vacuna: ${r.vacuna}`);
-  push(KEYS.mortandad, '💀', r => `Mortandad: ${r.cantidad} aves`);
-  push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg} kg`);
-
-  items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
-
-  const el = document.getElementById('actividadList');
-
-  el.innerHTML = items.length
-    ? items.slice(0, 8).map(it => `
-        <div class="actividad-item">
-          <span>${it.icon}</span>
-          <span>${it.text}</span>
-        </div>
-      `).join('')
-    : '<p style="color:#999">Sin actividad</p>';
-}
-
-// ─── PLACEHOLDERS (NO MODIFICADOS) ───────────────────────────
-function renderLote() {}
-function renderPostura() {}
-function renderAlimentacion() {}
-function renderVacunacion() {}
-function renderMedicacion() {}
-function renderMortandad() {}
-
-// ─── BACKUP (SI LO TENÍAS, SE MANTIENE) ──────────────────────
-function setupBackup() {
-  const btn = document.getElementById('btnBackup');
-  if (btn) {
-    btn.onclick = () => {
-      const data = {};
-      Object.values(KEYS).forEach(k => data[k] = DB.get(k));
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'hinse-backup.json';
-      a.click();
-
-      URL.revokeObjectURL(url);
-    };
-  }
-}
-
-// ─── HELPERS ──────────────────────────────────────────────────
-function populateDashDate() {
-  const el = document.getElementById('dashDate');
-  if (el) el.textContent = new Date().toLocaleDateString('es-AR');
+function renderAll() {
+  renderLotes();
+  renderVacunacion();
+  renderMortandad();
 }
