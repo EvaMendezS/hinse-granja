@@ -13,11 +13,11 @@ const DB = {
     } catch (e) {
       return [];
     }
-  },
+  }
 
   set(key, val) {
     localStorage.setItem(key, JSON.stringify(val));
-  },
+  }
 
   getObj(key, def) {
     try {
