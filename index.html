@@ -8,13 +8,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Hinse" />
   <title>Hinse — Granja Avícola</title>
-
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
 
 <!-- SPLASH -->
@@ -54,6 +52,12 @@
       </div>
 
       <div class="kpi-grid" id="kpiGrid"></div>
+
+      <!-- UN SOLO CHART -->
+      <div class="chart-card" style="margin-bottom:16px">
+        <h3>Mortandad últimos 7 días</h3>
+        <canvas id="chartMortandad" height="160"></canvas>
+      </div>
 
       <div class="section-block" id="alertasBlock">
         <h3 class="section-title">⚠️ Alertas</h3>
@@ -125,7 +129,7 @@
 
   </main>
 
-  <!-- BOTTOM NAV -->
+  <!-- BOTTOM NAV — Postura reemplazada por Mortandad -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="dashboard">
       <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
@@ -144,7 +148,7 @@
     </button>
   </nav>
 
-  <!-- MENÚ MÁS -->
+  <!-- MENU MÁS (medicación y postura quedan en el menú secundario) -->
   <div id="masMenu" class="mas-menu hidden">
     <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
     <button class="mas-btn" data-view="postura">🥚 Postura</button>
@@ -152,24 +156,192 @@
 
 </div>
 
-<!-- MODALES (SIN CAMBIOS) -->
-<!-- ... todo igual que tu archivo original ... -->
+<!-- ============= MODALES ============= -->
+
+<!-- MODAL LOTE -->
+<div id="modalLote" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🐣 Ingreso de Pollitas</h3>
+      <button class="modal-close" onclick="closeModal('modalLote')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="loteId" />
+      <div class="field-group"><label>Fecha de Ingreso</label><input type="date" id="loteFecha" /></div>
+      <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A - Isa Brown" /></div>
+      <div class="field-group"><label>Cantidad de Pollitas</label><input type="number" id="loteCantidad" placeholder="0" /></div>
+      <div class="field-group"><label>Raza / Línea</label><input type="text" id="loteRaza" placeholder="Ej: Isa Brown, Lohmann" /></div>
+      <div class="field-group"><label>Semana de vida al ingreso</label><input type="number" id="loteSemana" placeholder="0" /></div>
+      <div class="field-group"><label>Procedencia / Proveedor</label><input type="text" id="loteProcedencia" placeholder="Nombre del proveedor" /></div>
+      <div class="field-group">
+        <label>Etapa</label>
+        <select id="loteEtapa">
+          <option value="recria">Recría (0–18 semanas)</option>
+          <option value="produccion">Producción (18+ semanas)</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Notas</label><textarea id="loteNotas" rows="2" placeholder="Observaciones..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalLote')">Cancelar</button>
+      <button class="btn-primary" onclick="saveLote()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL POSTURA -->
+<div id="modalPostura" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🥚 Registro de Postura</h3>
+      <button class="modal-close" onclick="closeModal('modalPostura')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="posturaId" />
+      <div class="field-group"><label>Fecha</label><input type="date" id="posturaFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="posturaLote"></select></div>
+      <div class="field-group"><label>Huevos Recogidos</label><input type="number" id="posturaHuevos" placeholder="0" /></div>
+      <div class="field-group"><label>Huevos Rotos / Descarte</label><input type="number" id="posturaRotos" placeholder="0" value="0" /></div>
+      <div class="field-group"><label>% Postura calculado</label><input type="text" id="posturaPorc" readonly class="readonly" placeholder="Se calcula automático" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="posturaNotas" rows="2" placeholder="Observaciones..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalPostura')">Cancelar</button>
+      <button class="btn-primary" onclick="savePostura()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ALIMENTACIÓN -->
+<div id="modalAlimentacion" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🌾 Registro de Alimentación</h3>
+      <button class="modal-close" onclick="closeModal('modalAlimentacion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="alimentacionId" />
+      <div class="field-group"><label>Fecha</label><input type="date" id="alimentacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="alimentacionLote"></select></div>
+      <div class="field-group"><label>Tipo de Alimento</label><input type="text" id="alimentacionTipo" placeholder="Ej: Balanceado postura, maíz..." /></div>
+      <div class="field-group"><label>Cantidad (kg)</label><input type="number" id="alimentacionKg" placeholder="0" step="0.5" /></div>
+      <div class="field-group"><label>Consumo por ave (g/día)</label><input type="number" id="alimentacionGrAve" placeholder="0" /></div>
+      <div class="field-group"><label>Proveedor</label><input type="text" id="alimentacionProveedor" placeholder="Nombre del proveedor" /></div>
+      <div class="field-group"><label>Costo ($)</label><input type="number" id="alimentacionCosto" placeholder="0.00" step="0.01" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="alimentacionNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalAlimentacion')">Cancelar</button>
+      <button class="btn-primary" onclick="saveAlimentacion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VACUNACIÓN -->
+<div id="modalVacunacion" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💉 Registro de Vacunación</h3>
+      <button class="modal-close" onclick="closeModal('modalVacunacion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="vacunacionId" />
+      <div class="field-group"><label>Fecha</label><input type="date" id="vacunacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="vacunacionLote"></select></div>
+      <div class="field-group"><label>Vacuna</label><input type="text" id="vacunaNombre" placeholder="Ej: Newcastle, Bronquitis..." /></div>
+      <div class="field-group">
+        <label>Vía de Aplicación</label>
+        <select id="vacunaVia">
+          <option value="agua">Agua de bebida</option>
+          <option value="ocular">Ocular</option>
+          <option value="nasal">Nasal</option>
+          <option value="inyectable">Inyectable</option>
+          <option value="spray">Spray</option>
+          <option value="ala">Punción alar</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Dosis</label><input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves" /></div>
+      <div class="field-group"><label>Aplicado por</label><input type="text" id="vacunaAplicador" placeholder="Nombre del responsable" /></div>
+      <div class="field-group"><label>Próxima dosis (fecha)</label><input type="date" id="vacunaProxima" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="vacunaNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalVacunacion')">Cancelar</button>
+      <button class="btn-primary" onclick="saveVacunacion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MEDICACIÓN -->
+<div id="modalMedicacion" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💊 Registro de Medicación</h3>
+      <button class="modal-close" onclick="closeModal('modalMedicacion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="medicacionId" />
+      <div class="field-group"><label>Fecha inicio</label><input type="date" id="medicacionFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="medicacionLote"></select></div>
+      <div class="field-group"><label>Medicamento</label><input type="text" id="medicamentoNombre" placeholder="Nombre del medicamento" /></div>
+      <div class="field-group"><label>Motivo / Diagnóstico</label><input type="text" id="medicamentoMotivo" placeholder="Ej: Coccidiosis, CRD..." /></div>
+      <div class="field-group"><label>Dosis</label><input type="text" id="medicamentoDosis" placeholder="Ej: 1ml/L agua" /></div>
+      <div class="field-group"><label>Duración (días)</label><input type="number" id="medicamentoDias" placeholder="0" /></div>
+      <div class="field-group"><label>Veterinario responsable</label><input type="text" id="medicamentoVet" placeholder="Nombre del veterinario" /></div>
+      <div class="field-group"><label>Notas</label><textarea id="medicamentoNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalMedicacion')">Cancelar</button>
+      <button class="btn-primary" onclick="saveMedicacion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MORTANDAD -->
+<div id="modalMortandad" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💀 Registro de Mortandad</h3>
+      <button class="modal-close" onclick="closeModal('modalMortandad')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mortandadId" />
+      <div class="field-group"><label>Fecha</label><input type="date" id="mortandadFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="mortandadLote"></select></div>
+      <div class="field-group"><label>Cantidad de Bajas</label><input type="number" id="mortandadCantidad" placeholder="0" /></div>
+      <div class="field-group">
+        <label>Causa probable</label>
+        <select id="mortandadCausa">
+          <option value="enfermedad">Enfermedad</option>
+          <option value="estres_calor">Estrés por calor</option>
+          <option value="estres_frio">Estrés por frío</option>
+          <option value="accidente">Accidente / Manejo</option>
+          <option value="depredador">Depredador</option>
+          <option value="desconocida">Causa desconocida</option>
+          <option value="otra">Otra</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Descripción / Síntomas</label><textarea id="mortandadDesc" rows="2" placeholder="Síntomas observados..."></textarea></div>
+      <div class="field-group">
+        <label>¿Se realizó necropsia?</label>
+        <select id="mortandadNecropsia">
+          <option value="no">No</option>
+          <option value="si">Sí</option>
+          <option value="pendiente">Pendiente</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalMortandad')">Cancelar</button>
+      <button class="btn-primary" onclick="saveMortandad()">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
-
-<!-- ✅ FIX IMPORTANTE: AUTO CARGA DASHBOARD -->
-<script>
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      if (typeof navigateTo === 'function') {
-        navigateTo('dashboard');
-      }
-    }, 250);
-  });
-</script>
-
 </body>
 </html>
