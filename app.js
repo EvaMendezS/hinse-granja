@@ -8,8 +8,11 @@
 // ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
   get(key) {
-    try { return JSON.parse(localStorage.getItem(key)) || []; }
-    catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem(key)) || [];
+    } catch (e) {
+      return [];
+    }
   },
 
   set(key, val) {
@@ -17,9 +20,12 @@ const DB = {
   },
 
   getObj(key, def) {
-    try { return JSON.parse(localStorage.getItem(key)) || def; }
-    catch { return def; }
-  },
+    try {
+      return JSON.parse(localStorage.getItem(key)) || def;
+    } catch (e) {
+      return def;
+    }
+  }
 };
 
 const KEYS = {
