@@ -1,57 +1,24 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- DASHBOARD -->
+<section id="view-dashboard" class="view active">
+  <div class="view-header">
+    <h2>Dashboard</h2>
+    <span class="view-date" id="dashDate"></span>
+  </div>
 
-  <meta name="theme-color" content="#1a2e1a" />
-  <meta name="mobile-web-app-capable" content="yes" />
+  <div class="kpi-grid" id="kpiGrid"></div>
 
-  <title>Hinse</title>
+  <!-- ❌ ELIMINADO GRAFICO DE MORTANDAD -->
 
-  <link rel="icon" href="./icon-192.png" />
-  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <div class="section-block">
+    <h3 class="section-title">⚠️ Alertas</h3>
+    <div id="alertasList"></div>
+  </div>
 
-  <link rel="stylesheet" href="styles.css" />
-</head>
+  <div class="section-block">
+    <h3 class="section-title">🕐 Actividad Reciente</h3>
+    <div id="actividadList"></div>
+  </div>
+</section>
 
-<body>
-
-<div id="splash">Cargando...</div>
-
-<div id="app" class="hidden">
-
-  <header>
-    <button id="btnBackup">Backup</button>
-  </header>
-
-  <main>
-
-    <section id="view-dashboard" class="view active">
-      <div id="kpiGrid"></div>
-      <div id="alertasList"></div>
-    </section>
-
-    <section id="view-lote" class="view"></section>
-    <section id="view-postura" class="view"></section>
-    <section id="view-alimentacion" class="view"></section>
-    <section id="view-vacunacion" class="view"></section>
-    <section id="view-medicacion" class="view"></section>
-    <section id="view-mortandad" class="view"></section>
-
-  </main>
-
-  <nav>
-    <button class="nav-btn" data-view="dashboard">Inicio</button>
-    <button class="nav-btn" data-view="lote">Lote</button>
-    <button class="nav-btn" data-view="mortandad">Muertes</button>
-  </nav>
-
-</div>
-
-<div id="toast"></div>
 
 <script src="app.js"></script>
-
-</body>
-</html>
