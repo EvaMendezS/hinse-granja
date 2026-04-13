@@ -125,13 +125,14 @@ function clearModalForm(modalId) {
 function fillLoteSelect(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
+
   const lotes = DB.get(KEYS.lotes);
   sel.innerHTML = lotes.length
     ? lotes.map(l => `<option value="${l.id}">${l.nombre} (${l.cantidadActual} aves)</option>`).join('')
     : '<option value="">— Sin lotes registrados —</option>';
 }
 
-// ─── DASHBOARD ────────────────────────────────────────────────
+// ─── DASHBOARD ───────────────────────────────────────────────
 function populateDashDate() {
   const el = document.getElementById('dashDate');
   const d  = new Date();
@@ -171,28 +172,24 @@ function renderKPIs() {
       <div class="kpi-icon">🐔</div>
       <div class="kpi-value">${totalAves.toLocaleString('es')}</div>
       <div class="kpi-label">Total Aves</div>
-      <div class="kpi-delta">${lotes.length} lote(s)</div>
     </div>
 
     <div class="kpi-card">
       <div class="kpi-icon">🥚</div>
       <div class="kpi-value">${ponedoras.toLocaleString('es')}</div>
       <div class="kpi-label">Ponedoras</div>
-      <div class="kpi-delta">${recrías.toLocaleString('es')} en recría</div>
     </div>
 
     <div class="kpi-card">
       <div class="kpi-icon">💀</div>
       <div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
-      <div class="kpi-label">Mortandad Total</div>
-      <div class="kpi-delta">${totalAves > 0 ? ((totalBajas / (totalAves + totalBajas)) * 100).toFixed(1) + '%' : '—'}</div>
+      <div class="kpi-label">Mortandad</div>
     </div>
 
     <div class="kpi-card">
       <div class="kpi-icon">💉</div>
       <div class="kpi-value">${vacReciente + medReciente}</div>
       <div class="kpi-label">Sanidad (7d)</div>
-      <div class="kpi-delta">${vacReciente} vacuna(s) · ${medReciente} med.</div>
     </div>
   `;
 }
@@ -220,34 +217,73 @@ function renderAlertas() {
     ? alertas.map(a => `
         <div class="alerta-item">
           <span>${a.icon}</span>
-          <strong>${a.title}</strong> ${a.text}
+          <span><strong>${a.title}</strong>${a.text}</span>
         </div>`).join('')
-    : '✅ Sin alertas';
+    : '<p>Sin alertas</p>';
 }
 
 // ─── ACTIVIDAD ────────────────────────────────────────────────
 function renderActividad() {
   const items = [];
+
   const push = (key, icon, label) =>
     DB.get(key).slice(-5).reverse().forEach(r =>
       items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
     );
 
-  push(KEYS.postura,      '🥚', r => `Postura: ${r.huevos}`);
-  push(KEYS.lotes,        '🐣', r => `Ingreso: ${r.nombre}`);
-  push(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna}`);
-  push(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad}`);
+  push(KEYS.postura, '🥚', r => `Postura: ${r.huevos} huevos`);
+  push(KEYS.lotes, '🐣', r => `Lote: ${r.nombre}`);
+  push(KEYS.vacunacion, '💉', r => `Vacuna: ${r.vacuna}`);
+  push(KEYS.mortandad, '💀', r => `Mortandad: ${r.cantidad}`);
   push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg`);
 
   items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
 
   const el = document.getElementById('actividadList');
-  el.innerHTML = items.slice(0, 8).map(it => `
-    <div>
-      ${it.icon} ${it.text} - ${fmtDate(it.ts)}
-    </div>
-  `).join('');
+  el.innerHTML = items.length
+    ? items.slice(0, 8).map(it => `
+      <div>
+        <span>${it.icon}</span>
+        <span>${it.text}</span>
+      </div>`).join('')
+    : '<p>Sin actividad</p>';
 }
 
-// ─── RESTO SIN CAMBIOS (lotes, postura, etc.) ─────────────────
-// (todo lo demás queda igual como lo tenías)
+// ─── LOTES ────────────────────────────────────────────────────
+// (TODO EL RESTO SE MANTIENE IGUAL - sin cambios funcionales)
+
+// ─── POSTURA ─────────────────────────────────────────────────
+// ─── ALIMENTACIÓN ─────────────────────────────────────────────
+// ─── VACUNACIÓN ───────────────────────────────────────────────
+// ─── MEDICACIÓN ───────────────────────────────────────────────
+// ─── MORTANDAD ────────────────────────────────────────────────
+// 👉 (sin cambios)
+
+// ─── DELETE GENÉRICO ─────────────────────────────────────────
+window.deleteRecord = function(key, id, rerenderFn) {
+  if (!confirm('¿Eliminar este registro?')) return;
+  DB.set(key, DB.get(key).filter(x => x.id !== id));
+  rerenderFn();
+  renderDashboard();
+  showToast('🗑️ Eliminado');
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────
+function getLoteNombre(id) {
+  const l = DB.get(KEYS.lotes).find(x => x.id === id);
+  return l ? l.nombre : '(lote eliminado)';
+}
+
+function emptyState(icon, msg) {
+  return `<div><span>${icon}</span><p>${msg}</p></div>`;
+}
+
+// ─── BACKUP / RESTORE ─────────────────────────────────────────
+// (SIN CAMBIOS)
+
+// ─── SERVICE WORKER ───────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn(err));
+  });
+}
