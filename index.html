@@ -18,7 +18,23 @@
 <!-- SPLASH -->
 <div id="splash">
   <div class="splash-inner">
-    <div class="splash-egg">🥚</div>
+    <div class="splash-egg">
+      <svg viewBox="0 0 80 96" xmlns="http://www.w3.org/2000/svg" width="80" height="96">
+        <defs>
+          <radialGradient id="eggGrad" cx="38%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#f5e6c8"/>
+            <stop offset="55%" stop-color="#e8c87a"/>
+            <stop offset="100%" stop-color="#a86828"/>
+          </radialGradient>
+          <radialGradient id="eggShine" cx="32%" cy="28%" r="30%">
+            <stop offset="0%" stop-color="#fff8ee" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="#fff8ee" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#eggGrad)"/>
+        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#eggShine)"/>
+      </svg>
+    </div>
     <h1>Hinse</h1>
     <p>Granja Avícola</p>
     <div class="splash-bar"><div class="splash-fill"></div></div>
@@ -28,7 +44,6 @@
 <!-- APP -->
 <div id="app" class="hidden">
 
-  <!-- TOPBAR -->
   <header class="topbar">
     <div class="topbar-left">
       <span class="topbar-icon">🐔</span>
@@ -41,7 +56,6 @@
     </div>
   </header>
 
-  <!-- MAIN -->
   <main class="main-content">
 
     <!-- DASHBOARD -->
@@ -50,14 +64,11 @@
         <h2>Dashboard</h2>
         <span class="view-date" id="dashDate"></span>
       </div>
-
       <div class="kpi-grid" id="kpiGrid"></div>
-
       <div class="section-block" id="alertasBlock">
         <h3 class="section-title">⚠️ Alertas</h3>
         <div id="alertasList"></div>
       </div>
-
       <div class="section-block">
         <h3 class="section-title">🕐 Actividad Reciente</h3>
         <div id="actividadList"></div>
@@ -67,22 +78,19 @@
     <!-- LOTE -->
     <section id="view-lote" class="view">
       <div class="view-header">
-        <h2>Ingreso de Pollitas</h2>
-        <button class="btn-primary" onclick="openModal('modalLote')">+ Nuevo Ingreso</button>
+        <h2>Lotes</h2>
+        <button class="btn-primary" onclick="openModal('modalLote')">+ Nuevo</button>
       </div>
       <div id="loteList" class="card-list"></div>
     </section>
 
-    <!-- POSTURA -->
-    <section id="view-postura" class="view">
+    <!-- MORTANDAD -->
+    <section id="view-mortandad" class="view">
       <div class="view-header">
-        <h2>Registro de Postura</h2>
-        <button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button>
+        <h2>Mortandad</h2>
+        <button class="btn-primary" onclick="openModal('modalMortandad')">+ Registrar</button>
       </div>
-      <div class="filter-bar">
-        <input type="month" id="filtroPosturaMes" onchange="renderPostura()" />
-      </div>
-      <div id="posturaList" class="card-list"></div>
+      <div id="mortandadList" class="card-list"></div>
     </section>
 
     <!-- ALIMENTACIÓN -->
@@ -103,6 +111,18 @@
       <div id="vacunacionList" class="card-list"></div>
     </section>
 
+    <!-- POSTURA -->
+    <section id="view-postura" class="view">
+      <div class="view-header">
+        <h2>Postura</h2>
+        <button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button>
+      </div>
+      <div class="filter-bar">
+        <input type="month" id="filtroPosturaMes" onchange="renderPostura()" />
+      </div>
+      <div id="posturaList" class="card-list"></div>
+    </section>
+
     <!-- MEDICACIÓN -->
     <section id="view-medicacion" class="view">
       <div class="view-header">
@@ -112,18 +132,46 @@
       <div id="medicacionList" class="card-list"></div>
     </section>
 
-    <!-- MORTANDAD -->
-    <section id="view-mortandad" class="view">
+    <!-- ENFERMEDADES -->
+    <section id="view-enfermedades" class="view">
       <div class="view-header">
-        <h2>Mortandad</h2>
-        <button class="btn-primary" onclick="openModal('modalMortandad')">+ Registrar</button>
+        <h2>Enfermedades</h2>
+        <button class="btn-primary" onclick="openModal('modalEnfermedad')">+ Registrar</button>
       </div>
-      <div id="mortandadList" class="card-list"></div>
+      <div class="export-bar">
+        <button class="btn-export" onclick="exportarCSV('hinse_enfermedades','enfermedades')">📊 Exportar CSV</button>
+      </div>
+      <div id="enfermedadList" class="card-list"></div>
+    </section>
+
+    <!-- NOTAS DE CAMPO -->
+    <section id="view-notas" class="view">
+      <div class="view-header">
+        <h2>Notas de Campo</h2>
+        <button class="btn-primary" onclick="openModal('modalNota')">+ Nueva Nota</button>
+      </div>
+      <div id="notasList" class="card-list"></div>
+    </section>
+
+    <!-- HISTORIAL POR LOTE -->
+    <section id="view-historial" class="view">
+      <div class="view-header">
+        <h2>Historial de Lote</h2>
+      </div>
+      <div class="filter-bar" style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <select id="historialLoteSelect" onchange="onHistorialChange()" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:.9rem"></select>
+        <button class="btn-export" onclick="exportarCSV('hinse_lotes','lotes')">📊 CSV</button>
+      </div>
+      <div id="historialResumen"></div>
+      <div class="section-block">
+        <h3 class="section-title">📋 Todos los eventos</h3>
+        <div id="historialEventos"></div>
+      </div>
     </section>
 
   </main>
 
-  <!-- BOTTOM NAV — Postura reemplazada por Mortandad -->
+  <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="dashboard">
       <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
@@ -140,13 +188,23 @@
     <button class="nav-btn" data-view="vacunacion">
       <span class="nav-icon">💉</span><span class="nav-label">Sanidad</span>
     </button>
+    <button class="nav-btn" id="navMasBtn">
+      <span class="nav-icon">☰</span><span class="nav-label">Más</span>
+    </button>
   </nav>
 
-  <!-- MENU MÁS (medicación y postura quedan en el menú secundario) -->
+  <!-- BOTÓN MÁS en nav -->
+  <!-- (ya están las vistas extra, se navegan via JS) -->
+  <!-- Las vistas extra se navegan desde botones dentro de las cards -->
+  <!-- MENÚ MÁS -->
   <div id="masMenu" class="mas-menu hidden">
-    <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
-    <button class="mas-btn" data-view="postura">🥚 Postura</button>
+    <button class="mas-btn" onclick="navigateTo('postura');closeMenu()">🥚 Postura</button>
+    <button class="mas-btn" onclick="navigateTo('medicacion');closeMenu()">💊 Medicación</button>
+    <button class="mas-btn" onclick="navigateTo('enfermedades');closeMenu()">🦠 Enfermedades</button>
+    <button class="mas-btn" onclick="navigateTo('notas');closeMenu()">📷 Notas de Campo</button>
+    <button class="mas-btn" onclick="navigateTo('historial');closeMenu()">📋 Historial Lote</button>
   </div>
+
 
 </div>
 
@@ -162,7 +220,8 @@
     <div class="modal-body">
       <input type="hidden" id="loteId" />
       <div class="field-group"><label>Fecha de Ingreso</label><input type="date" id="loteFecha" /></div>
-      <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A - Isa Brown" /></div>
+      <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A" /></div>
+      <div class="field-group"><label>Galpón</label><input type="text" id="loteGalpon" placeholder="Ej: Galpón 1, Galpón Norte" /></div>
       <div class="field-group"><label>Cantidad de Pollitas</label><input type="number" id="loteCantidad" placeholder="0" /></div>
       <div class="field-group"><label>Raza / Línea</label><input type="text" id="loteRaza" placeholder="Ej: Isa Brown, Lohmann" /></div>
       <div class="field-group"><label>Semana de vida al ingreso</label><input type="number" id="loteSemana" placeholder="0" /></div>
@@ -256,7 +315,7 @@
       </div>
       <div class="field-group"><label>Dosis</label><input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves" /></div>
       <div class="field-group"><label>Aplicado por</label><input type="text" id="vacunaAplicador" placeholder="Nombre del responsable" /></div>
-      <div class="field-group"><label>Próxima dosis (fecha)</label><input type="date" id="vacunaProxima" /></div>
+      <div class="field-group"><label>Próxima dosis</label><input type="date" id="vacunaProxima" /></div>
       <div class="field-group"><label>Notas</label><textarea id="vacunaNotas" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
@@ -328,6 +387,65 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modalMortandad')">Cancelar</button>
       <button class="btn-primary" onclick="saveMortandad()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ENFERMEDAD -->
+<div id="modalEnfermedad" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🦠 Registro de Enfermedad</h3>
+      <button class="modal-close" onclick="closeModal('modalEnfermedad')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="enfermedadId" />
+      <div class="field-group"><label>Fecha de detección</label><input type="date" id="enfermedadFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="enfermedadLote"></select></div>
+      <div class="field-group"><label>Nombre / Diagnóstico</label><input type="text" id="enfermedadNombre" placeholder="Ej: Marek, Newcastle, CRD..." /></div>
+      <div class="field-group"><label>Síntomas observados</label><textarea id="enfermedadSintomas" rows="2" placeholder="Describí los síntomas..."></textarea></div>
+      <div class="field-group"><label>Aves afectadas</label><input type="number" id="enfermedadAfectadas" placeholder="0" /></div>
+      <div class="field-group"><label>Veterinario</label><input type="text" id="enfermedadVet" placeholder="Nombre del veterinario" /></div>
+      <div class="field-group"><label>Tratamiento indicado</label><textarea id="enfermedadTratamiento" rows="2" placeholder="Medicamentos, dosis, duración..."></textarea></div>
+      <div class="field-group">
+        <label>Estado</label>
+        <select id="enfermedadEstado">
+          <option value="activa">Activa</option>
+          <option value="controlada">Controlada</option>
+          <option value="resuelta">Resuelta</option>
+        </select>
+      </div>
+      <div class="field-group"><label>Fecha de cierre</label><input type="date" id="enfermedadCierre" /></div>
+      <div class="field-group"><label>Notas adicionales</label><textarea id="enfermedadNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalEnfermedad')">Cancelar</button>
+      <button class="btn-primary" onclick="saveEnfermedad()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOTA DE CAMPO -->
+<div id="modalNota" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📷 Nota de Campo</h3>
+      <button class="modal-close" onclick="closeModal('modalNota')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="notaId" />
+      <div class="field-group"><label>Fecha</label><input type="date" id="notaFecha" /></div>
+      <div class="field-group"><label>Lote</label><select id="notaLote"></select></div>
+      <div class="field-group"><label>Observación / Nota</label><textarea id="notaTexto" rows="3" placeholder="Describí lo que observás..."></textarea></div>
+      <div class="field-group">
+        <label>Foto (opcional)</label>
+        <input type="file" id="notaFoto" accept="image/*" capture="environment" style="color:var(--text2);padding:8px 0" />
+        <div id="notaFotoPreview" class="foto-preview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalNota')">Cancelar</button>
+      <button class="btn-primary" onclick="saveNota()">Guardar</button>
     </div>
   </div>
 </div>

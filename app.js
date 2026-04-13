@@ -1,5 +1,5 @@
 /* ============================================================
-   Hinse — Control Avícola
+   Hinse — Control Avícola  v2.0
    app.js — Lógica principal
    Almacenamiento: localStorage (sin servidor, 100% offline)
    ============================================================ */
@@ -10,7 +10,6 @@
 const DB = {
   get(key)         { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
   set(key, val)    { localStorage.setItem(key, JSON.stringify(val)); },
-  getObj(key, def) { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
 };
 
 const KEYS = {
@@ -20,12 +19,20 @@ const KEYS = {
   vacunacion:   'hinse_vacunacion',
   medicacion:   'hinse_medicacion',
   mortandad:    'hinse_mortandad',
+  enfermedades: 'hinse_enfermedades',
+  notas:        'hinse_notas',
 };
 
 // ─── UTILIDADES ───────────────────────────────────────────────
 const uid     = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtDate = d => { if (!d) return '—'; const [y, m, dia] = d.split('-'); return `${dia}/${m}/${y}`; };
 const today   = () => new Date().toISOString().split('T')[0];
+
+function semanasDesde(fechaISO) {
+  if (!fechaISO) return null;
+  const diff = Date.now() - new Date(fechaISO).getTime();
+  return Math.floor(diff / (7 * 24 * 3600 * 1000));
+}
 
 function showToast(msg, ms = 2200) {
   const el = document.getElementById('toast');
@@ -59,6 +66,8 @@ function init() {
   renderVacunacion();
   renderMedicacion();
   renderMortandad();
+  renderEnfermedades();
+  renderNotas();
 
   document.querySelectorAll('input[type="date"]').forEach(i => { if (!i.value) i.value = today(); });
   document.getElementById('posturaHuevos').addEventListener('input', calcPosturaPct);
@@ -87,6 +96,9 @@ function navigateTo(view) {
   if (view === 'vacunacion')   fillLoteSelect('vacunacionLote');
   if (view === 'medicacion')   fillLoteSelect('medicacionLote');
   if (view === 'mortandad')    fillLoteSelect('mortandadLote');
+  if (view === 'enfermedades') fillLoteSelect('enfermedadLote');
+  if (view === 'notas')        fillLoteSelect('notaLote');
+  if (view === 'historial')    renderHistorialSelector();
 }
 
 // ─── MODALES ─────────────────────────────────────────────────
@@ -99,6 +111,8 @@ window.openModal = function(id) {
   if (id === 'modalVacunacion')   fillLoteSelect('vacunacionLote');
   if (id === 'modalMedicacion')   fillLoteSelect('medicacionLote');
   if (id === 'modalMortandad')    fillLoteSelect('mortandadLote');
+  if (id === 'modalEnfermedad')   fillLoteSelect('enfermedadLote');
+  if (id === 'modalNota')         fillLoteSelect('notaLote');
 };
 
 window.closeModal = function(id) {
@@ -112,12 +126,15 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 function clearModalForm(modalId) {
-  document.querySelectorAll(`#${modalId} input:not([type=hidden]), #${modalId} select, #${modalId} textarea`).forEach(el => {
+  document.querySelectorAll(`#${modalId} input:not([type=hidden]):not([type=file]), #${modalId} select, #${modalId} textarea`).forEach(el => {
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
   });
   document.querySelectorAll(`#${modalId} input[type=hidden]`).forEach(el => el.value = '');
   document.querySelectorAll(`#${modalId} input[type=date]`).forEach(el => el.value = today());
+  // Limpiar preview de foto si existe
+  const preview = document.querySelector(`#${modalId} .foto-preview`);
+  if (preview) preview.innerHTML = '';
 }
 
 function fillLoteSelect(selectId) {
@@ -125,7 +142,7 @@ function fillLoteSelect(selectId) {
   if (!sel) return;
   const lotes = DB.get(KEYS.lotes);
   sel.innerHTML = lotes.length
-    ? lotes.map(l => `<option value="${l.id}">${l.nombre} (${l.cantidadActual} aves)</option>`).join('')
+    ? lotes.map(l => `<option value="${l.id}">${l.nombre} — ${l.galpon || 'Sin galpón'} (${l.cantidadActual} aves)</option>`).join('')
     : '<option value="">— Sin lotes registrados —</option>';
 }
 
@@ -142,16 +159,15 @@ function renderDashboard() {
   renderActividad();
 }
 
-// ─── KPIs ─────────────────────────────────────────────────────
 function renderKPIs() {
-  const lotes      = DB.get(KEYS.lotes);
+  const lotes       = DB.get(KEYS.lotes);
   const mortandades = DB.get(KEYS.mortandad);
-  const vacunas    = DB.get(KEYS.vacunacion);
-  const medicacion = DB.get(KEYS.medicacion);
+  const vacunas     = DB.get(KEYS.vacunacion);
+  const medicacion  = DB.get(KEYS.medicacion);
 
-  const ponedoras = lotes.filter(l => l.etapa === 'produccion').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const recrías   = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
-  const totalAves = ponedoras + recrías;
+  const ponedoras  = lotes.filter(l => l.etapa === 'produccion').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const recrías    = lotes.filter(l => l.etapa === 'recria').reduce((s, l) => s + (parseInt(l.cantidadActual) || 0), 0);
+  const totalAves  = ponedoras + recrías;
   const totalBajas = mortandades.reduce((s, m) => s + (parseInt(m.cantidad) || 0), 0);
 
   const ultimos7 = [];
@@ -162,8 +178,7 @@ function renderKPIs() {
   const vacReciente = vacunas.filter(v => ultimos7.includes(v.fecha)).length;
   const medReciente = medicacion.filter(m => ultimos7.includes(m.fecha)).length;
 
-  const grid = document.getElementById('kpiGrid');
-  grid.innerHTML = `
+  document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi-card" style="--kpi-color:var(--accent); animation-delay:0s">
       <div class="kpi-icon">🐔</div>
       <div class="kpi-value">${totalAves.toLocaleString('es')}</div>
@@ -191,26 +206,40 @@ function renderKPIs() {
   `;
 }
 
-
-// ─── ALERTAS ─────────────────────────────────────────────────
 function renderAlertas() {
+  const lotes   = DB.get(KEYS.lotes);
   const vacunas = DB.get(KEYS.vacunacion);
   const alertas = [];
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const hoy     = new Date(); hoy.setHours(0, 0, 0, 0);
 
+  // Vacunas próximas
   vacunas.forEach(v => {
     if (!v.proximaFecha) return;
     const prox = new Date(v.proximaFecha); prox.setHours(0, 0, 0, 0);
     const diff = Math.ceil((prox - hoy) / 864e5);
     if (diff >= 0 && diff <= 7)
-      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: ` — En ${diff} día(s)` });
+      alertas.push({ icon: '💉', title: `Vacuna próxima: ${v.vacuna}`, text: ` — En ${diff} día(s) · ${getLoteNombre(v.loteId)}` });
     if (diff < 0 && diff > -3)
       alertas.push({ icon: '🔴', title: `Vacuna vencida: ${v.vacuna}`, text: ` — Hace ${Math.abs(diff)} día(s)` });
   });
 
+  // Lotes recría próximos a semana 18
+  lotes.filter(l => l.etapa === 'recria').forEach(l => {
+    const semanas = semanasDesde(l.fecha) + (parseInt(l.semanaIngreso) || 0);
+    if (semanas >= 17 && semanas < 20) {
+      alertas.push({ icon: '🔔', title: `Lote próximo a producción: ${l.nombre}`, text: ` — Semana ${semanas} de vida` });
+    }
+  });
+
+  // Mortandad alta hoy
   DB.get(KEYS.mortandad).filter(m => m.fecha === today()).forEach(m => {
     if (parseInt(m.cantidad) >= 5)
       alertas.push({ icon: '🚨', title: `Alta mortandad: ${m.cantidad} aves hoy`, text: ` — ${getLoteNombre(m.loteId)}` });
+  });
+
+  // Enfermedades activas
+  DB.get(KEYS.enfermedades).filter(e => e.estado === 'activa').forEach(e => {
+    alertas.push({ icon: '🦠', title: `Enfermedad activa: ${e.nombre}`, text: ` — ${getLoteNombre(e.loteId)}` });
   });
 
   const el = document.getElementById('alertasList');
@@ -223,10 +252,9 @@ function renderAlertas() {
     : '<p style="color:var(--text3);font-size:.85rem;padding:8px 0">✅ Sin alertas pendientes</p>';
 }
 
-// ─── ACTIVIDAD ────────────────────────────────────────────────
 function renderActividad() {
   const items = [];
-  const push = (key, icon, label) =>
+  const push  = (key, icon, label) =>
     DB.get(key).slice(-5).reverse().forEach(r =>
       items.push({ icon, text: label(r), ts: r.createdAt || r.fecha || '' })
     );
@@ -235,11 +263,13 @@ function renderActividad() {
   push(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna} — ${getLoteNombre(r.loteId)}`);
   push(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
   push(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.enfermedades, '🦠', r => `Enfermedad: ${r.nombre} — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.notas,        '📷', r => `Nota de campo — ${getLoteNombre(r.loteId)}`);
 
   items.sort((a, b) => (b.ts > a.ts ? 1 : -1));
   const el = document.getElementById('actividadList');
   el.innerHTML = items.length
-    ? items.slice(0, 8).map(it => `
+    ? items.slice(0, 10).map(it => `
         <div class="actividad-item">
           <span style="font-size:1rem">${it.icon}</span>
           <span class="actividad-text">${it.text}</span>
@@ -256,10 +286,11 @@ window.saveLote = function() {
     id:              id || uid(),
     fecha:           document.getElementById('loteFecha').value,
     nombre:          document.getElementById('loteNombre').value.trim(),
+    galpon:          document.getElementById('loteGalpon').value.trim(),
     cantidadInicial: cantidad,
     cantidadActual:  cantidad,
     raza:            document.getElementById('loteRaza').value.trim(),
-    semana:          document.getElementById('loteSemana').value,
+    semanaIngreso:   parseInt(document.getElementById('loteSemana').value) || 0,
     procedencia:     document.getElementById('loteProcedencia').value.trim(),
     etapa:           document.getElementById('loteEtapa').value,
     notas:           document.getElementById('loteNotas').value.trim(),
@@ -284,26 +315,32 @@ function renderLote() {
   const lotes = DB.get(KEYS.lotes);
   const el    = document.getElementById('loteList');
   if (!lotes.length) { el.innerHTML = emptyState('🐣', 'Sin lotes registrados'); return; }
-  el.innerHTML = lotes.slice().reverse().map(l => `
+
+  el.innerHTML = lotes.slice().reverse().map(l => {
+    const semActual = semanasDesde(l.fecha) + (l.semanaIngreso || 0);
+    return `
     <div class="data-card">
       <div class="data-card-header">
         <span class="data-card-title">${l.nombre}</span>
         <span class="badge ${l.etapa === 'produccion' ? 'badge-green' : 'badge-gold'}">${l.etapa === 'produccion' ? 'Producción' : 'Recría'}</span>
       </div>
       <div class="data-card-body">
+        <div class="data-field"><span class="lbl">Galpón</span><span class="val">${l.galpon || '—'}</span></div>
         <div class="data-field"><span class="lbl">Ingreso</span><span class="val">${fmtDate(l.fecha)}</span></div>
         <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(l.cantidadActual) || 0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Semana actual</span><span class="val" style="color:var(--accent)">${semActual} sem.</span></div>
         <div class="data-field"><span class="lbl">Raza</span><span class="val">${l.raza || '—'}</span></div>
-        <div class="data-field"><span class="lbl">Semana de vida</span><span class="val">${l.semana || '—'}</span></div>
         <div class="data-field"><span class="lbl">Procedencia</span><span class="val">${l.procedencia || '—'}</span></div>
         <div class="data-field"><span class="lbl">Ingreso inicial</span><span class="val">${(parseInt(l.cantidadInicial) || 0).toLocaleString('es')}</span></div>
       </div>
       ${l.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${l.notas}</p>` : ''}
       <div class="data-card-actions">
         <button class="btn-edit" onclick="editLote('${l.id}')">✏️ Editar</button>
-        <button class="btn-delete" onclick="deleteLote('${l.id}')">🗑️ Eliminar</button>
+        <button class="btn-edit" onclick="verHistorial('${l.id}')" style="color:var(--blue)">📋 Historial</button>
+        <button class="btn-delete" onclick="deleteLote('${l.id}')">🗑️</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 window.editLote = function(id) {
@@ -312,9 +349,10 @@ window.editLote = function(id) {
   document.getElementById('loteId').value         = l.id;
   document.getElementById('loteFecha').value       = l.fecha;
   document.getElementById('loteNombre').value      = l.nombre;
+  document.getElementById('loteGalpon').value      = l.galpon || '';
   document.getElementById('loteCantidad').value    = l.cantidadActual;
   document.getElementById('loteRaza').value        = l.raza;
-  document.getElementById('loteSemana').value      = l.semana;
+  document.getElementById('loteSemana').value      = l.semanaIngreso || '';
   document.getElementById('loteProcedencia').value = l.procedencia;
   document.getElementById('loteEtapa').value       = l.etapa;
   document.getElementById('loteNotas').value       = l.notas;
@@ -336,7 +374,7 @@ function calcPosturaPct() {
   const aves   = lote ? (parseInt(lote.cantidadActual) || 0) : 0;
   document.getElementById('posturaPorc').value = aves > 0
     ? `${((huevos / aves) * 100).toFixed(1)}%`
-    : '— (registrá un lote primero)';
+    : '— (sin lote)';
 }
 
 window.savePostura = function() {
@@ -388,10 +426,24 @@ window.renderPostura = function() {
         ${pct ? `<div class="postura-bar-wrap"><div class="postura-bar-fill" style="width:${Math.min(pctNum, 100)}%;background:${barColor}"></div></div>` : ''}
         ${p.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${p.notas}</p>` : ''}
         <div class="data-card-actions">
+          <button class="btn-edit" onclick="editPostura('${p.id}')">✏️</button>
           <button class="btn-delete" onclick="deleteRecord('${KEYS.postura}','${p.id}',renderPostura)">🗑️</button>
         </div>
       </div>`;
   }).join('');
+};
+
+window.editPostura = function(id) {
+  const p = DB.get(KEYS.postura).find(x => x.id === id);
+  if (!p) return;
+  fillLoteSelect('posturaLote');
+  document.getElementById('posturaId').value     = p.id;
+  document.getElementById('posturaFecha').value  = p.fecha;
+  document.getElementById('posturaLote').value   = p.loteId;
+  document.getElementById('posturaHuevos').value = p.huevos;
+  document.getElementById('posturaRotos').value  = p.rotos;
+  document.getElementById('posturaNotas').value  = p.notas;
+  openModal('modalPostura');
 };
 
 // ─── ALIMENTACIÓN ─────────────────────────────────────────────
@@ -436,10 +488,27 @@ function renderAlimentacion() {
         <div class="data-field"><span class="lbl">Proveedor</span><span class="val">${r.proveedor || '—'}</span></div>
       </div>
       <div class="data-card-actions">
+        <button class="btn-edit" onclick="editAlimentacion('${r.id}')">✏️</button>
         <button class="btn-delete" onclick="deleteRecord('${KEYS.alimentacion}','${r.id}',renderAlimentacion)">🗑️</button>
       </div>
     </div>`).join('');
 }
+
+window.editAlimentacion = function(id) {
+  const r = DB.get(KEYS.alimentacion).find(x => x.id === id);
+  if (!r) return;
+  fillLoteSelect('alimentacionLote');
+  document.getElementById('alimentacionId').value        = r.id;
+  document.getElementById('alimentacionFecha').value     = r.fecha;
+  document.getElementById('alimentacionLote').value      = r.loteId;
+  document.getElementById('alimentacionTipo').value      = r.tipo;
+  document.getElementById('alimentacionKg').value        = r.kg;
+  document.getElementById('alimentacionGrAve').value     = r.grAve;
+  document.getElementById('alimentacionProveedor').value = r.proveedor;
+  document.getElementById('alimentacionCosto').value     = r.costo;
+  document.getElementById('alimentacionNotas').value     = r.notas;
+  openModal('modalAlimentacion');
+};
 
 // ─── VACUNACIÓN ───────────────────────────────────────────────
 window.saveVacunacion = function() {
@@ -485,10 +554,27 @@ function renderVacunacion() {
         <div class="data-field"><span class="lbl">Próxima</span><span class="val" style="color:var(--gold)">${r.proximaFecha ? fmtDate(r.proximaFecha) : '—'}</span></div>
       </div>
       <div class="data-card-actions">
+        <button class="btn-edit" onclick="editVacunacion('${r.id}')">✏️</button>
         <button class="btn-delete" onclick="deleteRecord('${KEYS.vacunacion}','${r.id}',renderVacunacion)">🗑️</button>
       </div>
     </div>`).join('');
 }
+
+window.editVacunacion = function(id) {
+  const r = DB.get(KEYS.vacunacion).find(x => x.id === id);
+  if (!r) return;
+  fillLoteSelect('vacunacionLote');
+  document.getElementById('vacunacionId').value    = r.id;
+  document.getElementById('vacunacionFecha').value = r.fecha;
+  document.getElementById('vacunacionLote').value  = r.loteId;
+  document.getElementById('vacunaNombre').value    = r.vacuna;
+  document.getElementById('vacunaVia').value       = r.via;
+  document.getElementById('vacunaDosis').value     = r.dosis;
+  document.getElementById('vacunaAplicador').value = r.aplicador;
+  document.getElementById('vacunaProxima').value   = r.proximaFecha || '';
+  document.getElementById('vacunaNotas').value     = r.notas;
+  openModal('modalVacunacion');
+};
 
 // ─── MEDICACIÓN ───────────────────────────────────────────────
 window.saveMedicacion = function() {
@@ -532,10 +618,27 @@ function renderMedicacion() {
         <div class="data-field"><span class="lbl">Veterinario</span><span class="val">${r.vet || '—'}</span></div>
       </div>
       <div class="data-card-actions">
+        <button class="btn-edit" onclick="editMedicacion('${r.id}')">✏️</button>
         <button class="btn-delete" onclick="deleteRecord('${KEYS.medicacion}','${r.id}',renderMedicacion)">🗑️</button>
       </div>
     </div>`).join('');
 }
+
+window.editMedicacion = function(id) {
+  const r = DB.get(KEYS.medicacion).find(x => x.id === id);
+  if (!r) return;
+  fillLoteSelect('medicacionLote');
+  document.getElementById('medicacionId').value      = r.id;
+  document.getElementById('medicacionFecha').value   = r.fecha;
+  document.getElementById('medicacionLote').value    = r.loteId;
+  document.getElementById('medicamentoNombre').value = r.nombre;
+  document.getElementById('medicamentoMotivo').value = r.motivo;
+  document.getElementById('medicamentoDosis').value  = r.dosis;
+  document.getElementById('medicamentoDias').value   = r.dias;
+  document.getElementById('medicamentoVet').value    = r.vet;
+  document.getElementById('medicamentoNotas').value  = r.notas;
+  openModal('modalMedicacion');
+};
 
 // ─── MORTANDAD ────────────────────────────────────────────────
 window.saveMortandad = function() {
@@ -550,14 +653,17 @@ window.saveMortandad = function() {
     necropsia: document.getElementById('mortandadNecropsia').value,
     createdAt: today(),
   };
-  if (!r.loteId)  return showToast('⚠️ Seleccioná un lote');
-  if (!r.cantidad) return showToast('⚠️ Ingresá cantidad de bajas');
+  if (!r.loteId)   return showToast('⚠️ Seleccioná un lote');
+  if (!r.cantidad)  return showToast('⚠️ Ingresá cantidad de bajas');
 
-  const lotes   = DB.get(KEYS.lotes);
-  const loteIdx = lotes.findIndex(l => l.id === r.loteId);
-  if (loteIdx > -1) {
-    lotes[loteIdx].cantidadActual = Math.max(0, (parseInt(lotes[loteIdx].cantidadActual) || 0) - r.cantidad);
-    DB.set(KEYS.lotes, lotes);
+  // Solo descontar si es nuevo registro
+  if (!id) {
+    const lotes   = DB.get(KEYS.lotes);
+    const loteIdx = lotes.findIndex(l => l.id === r.loteId);
+    if (loteIdx > -1) {
+      lotes[loteIdx].cantidadActual = Math.max(0, (parseInt(lotes[loteIdx].cantidadActual) || 0) - r.cantidad);
+      DB.set(KEYS.lotes, lotes);
+    }
   }
 
   const list = DB.get(KEYS.mortandad);
@@ -573,10 +679,7 @@ function renderMortandad() {
   const list = DB.get(KEYS.mortandad).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
   const el   = document.getElementById('mortandadList');
   if (!list.length) { el.innerHTML = emptyState('📋', 'Sin registros de mortandad'); return; }
-  const causas = {
-    enfermedad: 'Enfermedad', estres_calor: 'Estrés calor', estres_frio: 'Estrés frío',
-    accidente: 'Accidente', depredador: 'Depredador', desconocida: 'Desconocida', otra: 'Otra',
-  };
+  const causas = { enfermedad: 'Enfermedad', estres_calor: 'Estrés calor', estres_frio: 'Estrés frío', accidente: 'Accidente', depredador: 'Depredador', desconocida: 'Desconocida', otra: 'Otra' };
   el.innerHTML = list.map(r => `
     <div class="data-card">
       <div class="data-card-header">
@@ -590,17 +693,263 @@ function renderMortandad() {
       </div>
       ${r.desc ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${r.desc}</p>` : ''}
       <div class="data-card-actions">
+        <button class="btn-edit" onclick="editMortandad('${r.id}')">✏️</button>
         <button class="btn-delete" onclick="deleteRecord('${KEYS.mortandad}','${r.id}',renderMortandad)">🗑️</button>
       </div>
     </div>`).join('');
 }
+
+window.editMortandad = function(id) {
+  const r = DB.get(KEYS.mortandad).find(x => x.id === id);
+  if (!r) return;
+  fillLoteSelect('mortandadLote');
+  document.getElementById('mortandadId').value       = r.id;
+  document.getElementById('mortandadFecha').value    = r.fecha;
+  document.getElementById('mortandadLote').value     = r.loteId;
+  document.getElementById('mortandadCantidad').value = r.cantidad;
+  document.getElementById('mortandadCausa').value    = r.causa;
+  document.getElementById('mortandadDesc').value     = r.desc;
+  document.getElementById('mortandadNecropsia').value = r.necropsia;
+  openModal('modalMortandad');
+};
+
+// ─── ENFERMEDADES ─────────────────────────────────────────────
+window.saveEnfermedad = function() {
+  const id = document.getElementById('enfermedadId').value;
+  const r  = {
+    id:          id || uid(),
+    fecha:       document.getElementById('enfermedadFecha').value,
+    loteId:      document.getElementById('enfermedadLote').value,
+    nombre:      document.getElementById('enfermedadNombre').value.trim(),
+    sintomas:    document.getElementById('enfermedadSintomas').value.trim(),
+    afectadas:   parseInt(document.getElementById('enfermedadAfectadas').value) || 0,
+    vet:         document.getElementById('enfermedadVet').value.trim(),
+    tratamiento: document.getElementById('enfermedadTratamiento').value.trim(),
+    estado:      document.getElementById('enfermedadEstado').value,
+    fechaCierre: document.getElementById('enfermedadCierre').value,
+    notas:       document.getElementById('enfermedadNotas').value.trim(),
+    createdAt:   today(),
+  };
+  if (!r.loteId || !r.nombre) return showToast('⚠️ Completá lote y nombre de enfermedad');
+  const list = DB.get(KEYS.enfermedades);
+  if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
+  DB.set(KEYS.enfermedades, list);
+  closeModal('modalEnfermedad');
+  renderEnfermedades();
+  renderDashboard();
+  showToast('✅ Enfermedad registrada');
+};
+
+function renderEnfermedades() {
+  const list = DB.get(KEYS.enfermedades).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const el   = document.getElementById('enfermedadList');
+  if (!list.length) { el.innerHTML = emptyState('🦠', 'Sin registros de enfermedades'); return; }
+  el.innerHTML = list.map(r => {
+    const estadoBadge = r.estado === 'activa'
+      ? '<span class="badge badge-red">Activa</span>'
+      : r.estado === 'controlada'
+        ? '<span class="badge badge-gold">Controlada</span>'
+        : '<span class="badge badge-green">Resuelta</span>';
+    return `
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">🦠 ${r.nombre}</span>
+        ${estadoBadge}
+      </div>
+      <div class="data-card-body">
+        <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
+        <div class="data-field"><span class="lbl">Fecha inicio</span><span class="val">${fmtDate(r.fecha)}</span></div>
+        <div class="data-field"><span class="lbl">Aves afectadas</span><span class="val">${r.afectadas || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Veterinario</span><span class="val">${r.vet || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Tratamiento</span><span class="val">${r.tratamiento || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Cierre</span><span class="val">${r.fechaCierre ? fmtDate(r.fechaCierre) : '—'}</span></div>
+      </div>
+      ${r.sintomas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:8px"><strong style="color:var(--text2)">Síntomas:</strong> ${r.sintomas}</p>` : ''}
+      ${r.notas ? `<p style="color:var(--text3);font-size:.82rem;margin-top:4px">${r.notas}</p>` : ''}
+      <div class="data-card-actions">
+        <button class="btn-edit" onclick="editEnfermedad('${r.id}')">✏️ Editar</button>
+        <button class="btn-delete" onclick="deleteRecord('${KEYS.enfermedades}','${r.id}',renderEnfermedades)">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.editEnfermedad = function(id) {
+  const r = DB.get(KEYS.enfermedades).find(x => x.id === id);
+  if (!r) return;
+  fillLoteSelect('enfermedadLote');
+  document.getElementById('enfermedadId').value          = r.id;
+  document.getElementById('enfermedadFecha').value       = r.fecha;
+  document.getElementById('enfermedadLote').value        = r.loteId;
+  document.getElementById('enfermedadNombre').value      = r.nombre;
+  document.getElementById('enfermedadSintomas').value    = r.sintomas;
+  document.getElementById('enfermedadAfectadas').value   = r.afectadas;
+  document.getElementById('enfermedadVet').value         = r.vet;
+  document.getElementById('enfermedadTratamiento').value = r.tratamiento;
+  document.getElementById('enfermedadEstado').value      = r.estado;
+  document.getElementById('enfermedadCierre').value      = r.fechaCierre || '';
+  document.getElementById('enfermedadNotas').value       = r.notas;
+  openModal('modalEnfermedad');
+};
+
+// ─── NOTAS DE CAMPO ───────────────────────────────────────────
+window.saveNota = function() {
+  const id      = document.getElementById('notaId').value;
+  const input   = document.getElementById('notaFoto');
+  const archivo = input.files[0];
+
+  const guardar = (fotoBase64) => {
+    const r = {
+      id:        id || uid(),
+      fecha:     document.getElementById('notaFecha').value,
+      loteId:    document.getElementById('notaLote').value,
+      texto:     document.getElementById('notaTexto').value.trim(),
+      foto:      fotoBase64 || (id ? (DB.get(KEYS.notas).find(x => x.id === id) || {}).foto : null),
+      createdAt: today(),
+    };
+    if (!r.loteId) return showToast('⚠️ Seleccioná un lote');
+    const list = DB.get(KEYS.notas);
+    if (id) { const i = list.findIndex(x => x.id === id); if (i > -1) list[i] = r; } else list.push(r);
+    DB.set(KEYS.notas, list);
+    closeModal('modalNota');
+    renderNotas();
+    showToast('✅ Nota guardada');
+  };
+
+  if (archivo) {
+    const reader = new FileReader();
+    reader.onload = ev => guardar(ev.target.result);
+    reader.readAsDataURL(archivo);
+  } else {
+    guardar(null);
+  }
+};
+
+// Preview de foto
+document.getElementById('notaFoto').addEventListener('change', function() {
+  const preview = document.getElementById('notaFotoPreview');
+  if (this.files[0]) {
+    const reader = new FileReader();
+    reader.onload = ev => { preview.innerHTML = `<img src="${ev.target.result}" style="width:100%;border-radius:8px;margin-top:8px">`; };
+    reader.readAsDataURL(this.files[0]);
+  }
+});
+
+function renderNotas() {
+  const list = DB.get(KEYS.notas).slice().sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const el   = document.getElementById('notasList');
+  if (!list.length) { el.innerHTML = emptyState('📷', 'Sin notas de campo'); return; }
+  el.innerHTML = list.map(r => `
+    <div class="data-card">
+      <div class="data-card-header">
+        <span class="data-card-title">📷 ${getLoteNombre(r.loteId)}</span>
+        <span class="data-card-date">${fmtDate(r.fecha)}</span>
+      </div>
+      ${r.foto ? `<img src="${r.foto}" style="width:100%;border-radius:8px;margin:8px 0;max-height:200px;object-fit:cover">` : ''}
+      ${r.texto ? `<p style="color:var(--text2);font-size:.88rem;margin-top:4px">${r.texto}</p>` : ''}
+      <div class="data-card-actions">
+        <button class="btn-delete" onclick="deleteRecord('${KEYS.notas}','${r.id}',renderNotas)">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+// ─── HISTORIAL POR LOTE ───────────────────────────────────────
+function renderHistorialSelector() {
+  const lotes = DB.get(KEYS.lotes);
+  const sel   = document.getElementById('historialLoteSelect');
+  sel.innerHTML = lotes.length
+    ? lotes.map(l => `<option value="${l.id}">${l.nombre}</option>`).join('')
+    : '<option value="">— Sin lotes —</option>';
+  if (lotes.length) renderHistorial(lotes[0].id);
+}
+
+window.onHistorialChange = function() {
+  const id = document.getElementById('historialLoteSelect').value;
+  if (id) renderHistorial(id);
+};
+
+function renderHistorial(loteId) {
+  const lote = DB.get(KEYS.lotes).find(l => l.id === loteId);
+  if (!lote) return;
+
+  const semActual = semanasDesde(lote.fecha) + (lote.semanaIngreso || 0);
+
+  // Resumen del lote
+  document.getElementById('historialResumen').innerHTML = `
+    <div class="data-card" style="margin-bottom:14px">
+      <div class="data-card-header">
+        <span class="data-card-title">${lote.nombre}</span>
+        <span class="badge ${lote.etapa === 'produccion' ? 'badge-green' : 'badge-gold'}">${lote.etapa === 'produccion' ? 'Producción' : 'Recría'}</span>
+      </div>
+      <div class="data-card-body">
+        <div class="data-field"><span class="lbl">Galpón</span><span class="val">${lote.galpon || '—'}</span></div>
+        <div class="data-field"><span class="lbl">Ingreso</span><span class="val">${fmtDate(lote.fecha)}</span></div>
+        <div class="data-field"><span class="lbl">Semana actual</span><span class="val" style="color:var(--accent)">${semActual} sem.</span></div>
+        <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(lote.cantidadActual) || 0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Ingreso inicial</span><span class="val">${(parseInt(lote.cantidadInicial) || 0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Raza</span><span class="val">${lote.raza || '—'}</span></div>
+      </div>
+    </div>`;
+
+  // Todos los eventos del lote
+  const eventos = [];
+  const add = (key, icon, label) =>
+    DB.get(key).filter(r => r.loteId === loteId).forEach(r =>
+      eventos.push({ icon, text: label(r), fecha: r.fecha || r.createdAt || '' })
+    );
+
+  add(KEYS.mortandad,    '💀', r => `Mortandad: ${r.cantidad} ave(s) — ${r.causa || ''}`);
+  add(KEYS.vacunacion,   '💉', r => `Vacuna: ${r.vacuna} (${r.via || ''})`);
+  add(KEYS.medicacion,   '💊', r => `Medicación: ${r.nombre} — ${r.motivo || ''}`);
+  add(KEYS.alimentacion, '🌾', r => `Alimento: ${r.kg}kg ${r.tipo || ''}`);
+  add(KEYS.postura,      '🥚', r => `Postura: ${r.huevos} huevos`);
+  add(KEYS.enfermedades, '🦠', r => `Enfermedad: ${r.nombre} [${r.estado}]`);
+  add(KEYS.notas,        '📷', r => `Nota de campo: ${r.texto || '(sin texto)'}`);
+
+  eventos.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+
+  const el = document.getElementById('historialEventos');
+  el.innerHTML = eventos.length
+    ? eventos.map(ev => `
+        <div class="actividad-item">
+          <span style="font-size:1rem">${ev.icon}</span>
+          <span class="actividad-text">${ev.text}</span>
+          <span class="actividad-time">${fmtDate(ev.fecha)}</span>
+        </div>`).join('')
+    : '<p style="color:var(--text3);font-size:.85rem;padding:16px 0">Sin eventos registrados para este lote.</p>';
+}
+
+// ─── EXPORTAR CSV ─────────────────────────────────────────────
+window.exportarCSV = function(key, nombre) {
+  const list = DB.get(key);
+  if (!list.length) return showToast('⚠️ Sin datos para exportar');
+
+  const lotes = DB.get(KEYS.lotes);
+  const getLote = id => { const l = lotes.find(x => x.id === id); return l ? l.nombre : ''; };
+
+  // Enriquecer con nombre de lote y aplanar
+  const rows = list.map(r => ({ ...r, loteNombre: getLote(r.loteId || r.id) }));
+  const cols = Object.keys(rows[0]);
+  const csv  = [cols.join(','), ...rows.map(r =>
+    cols.map(c => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(',')
+  )].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `hinse-${nombre}-${today()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`📊 CSV de ${nombre} descargado`);
+};
 
 // ─── DELETE GENÉRICO ─────────────────────────────────────────
 window.deleteRecord = function(key, id, rerenderFn) {
   if (!confirm('¿Eliminar este registro?')) return;
   DB.set(key, DB.get(key).filter(x => x.id !== id));
   rerenderFn();
-  if ([KEYS.mortandad, KEYS.lotes, KEYS.vacunacion, KEYS.medicacion].includes(key))
+  if ([KEYS.mortandad, KEYS.lotes, KEYS.vacunacion, KEYS.medicacion, KEYS.enfermedades].includes(key))
     renderDashboard();
   showToast('🗑️ Registro eliminado');
 };
@@ -619,7 +968,7 @@ function setupBackup() {
   document.getElementById('btnBackup').addEventListener('click', () => {
     const data = {};
     Object.values(KEYS).forEach(k => { data[k] = DB.get(k); });
-    data._version    = 1;
+    data._version    = 2;
     data._exportDate = new Date().toISOString();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
@@ -646,9 +995,7 @@ function setupBackup() {
         Object.values(KEYS).forEach(k => { if (data[k]) DB.set(k, data[k]); });
         showToast('📂 Datos restaurados');
         setTimeout(() => location.reload(), 800);
-      } catch {
-        showToast('❌ Archivo inválido');
-      }
+      } catch { showToast('❌ Archivo inválido'); }
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -661,3 +1008,24 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW:', err));
   });
 }
+
+// ─── MENÚ MÁS ─────────────────────────────────────────────────
+document.getElementById('navMasBtn').addEventListener('click', () => {
+  const menu = document.getElementById('masMenu');
+  menu.classList.toggle('hidden');
+});
+
+window.closeMenu = function() {
+  document.getElementById('masMenu').classList.add('hidden');
+  // Desactivar todos los nav-btn del nav principal
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+};
+
+// Cerrar menú al tocar fuera
+document.addEventListener('click', e => {
+  const menu = document.getElementById('masMenu');
+  const btn  = document.getElementById('navMasBtn');
+  if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.add('hidden');
+  }
+});

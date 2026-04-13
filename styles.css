@@ -499,3 +499,61 @@ input, select, textarea, button { font-family: inherit; }
   transform: scale(0.97);
   background: linear-gradient(135deg, rgba(192, 80, 80, 0.28), rgba(192, 80, 80, 0.14));
 }
+/* ============================================================
+   Hinse v2.0 — Additions to styles.css
+   Pegá esto al final del styles.css existente
+   ============================================================ */
+
+/* ─── SVG HUEVO SPLASH ──────────────────────────────────────── */
+.splash-egg {
+  font-size: unset;          /* anula el font-size del emoji */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  animation: bounce 1s ease infinite alternate;
+  filter: drop-shadow(0 8px 18px rgba(168,104,40,0.55));
+}
+
+/* ─── EXPORT BAR ─────────────────────────────────────────────── */
+.export-bar {
+  margin-bottom: 12px;
+}
+.btn-export {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text2);
+  padding: 7px 14px;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-export:active { background: var(--bg3); }
+
+/* ─── FOTO PREVIEW ───────────────────────────────────────────── */
+.foto-preview img {
+  width: 100%;
+  border-radius: 8px;
+  margin-top: 8px;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+/* ─── HISTORIAL NAV LINKS ────────────────────────────────────── */
+.nav-link-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--blue);
+  padding: 5px 12px;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+.nav-link-btn:active { background: var(--bg3); }
+
+/* ─── VISTAS EXTRA accesibles desde bottom nav "más" ─────────── */
+/* Las vistas enfermedades, notas, historial, postura y medicación
+   se navegan desde los botones internos de cada sección.
+   Para acceso rápido podés agregar un botón "Más" al nav si querés. */
