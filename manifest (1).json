@@ -1,8 +1,9 @@
 {
-  "name": "Hinse — Control Avícola",
+  "name": "Hinse — Granja Avícola",
   "short_name": "Hinse",
   "description": "Sistema de gestión para granjas avícolas de postura",
-  "start_url": "./index.html",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#241a12",
@@ -22,6 +23,5 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["productivity", "utilities"],
-  "screenshots": []
+  "categories": ["productivity", "utilities"]
 }

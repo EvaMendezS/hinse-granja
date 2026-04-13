@@ -77,9 +77,9 @@ input, select, textarea, button { font-family: inherit; }
   height: 100%;
   background: linear-gradient(90deg, var(--accent3), var(--gold));
   border-radius: 99px;
-  animation: fillBar 1.8s ease forwards;
+  animation: splashFillBar 1.8s ease forwards;
 }
-@keyframes fillBar { from { width: 0; } to { width: 100%; } }
+@keyframes splashFillBar { from { width: 0; } to { width: 100%; } }
 
 /* ===== APP SHELL ===== */
 #app { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -471,4 +471,4 @@ input, select, textarea, button { font-family: inherit; }
 
 /* ===== POSTURA BAR ===== */
 .postura-bar-wrap { height: 6px; background: var(--bg3); border-radius: 99px; margin-top: 8px; overflow: hidden; }
-.postura-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width .5s ease; }
+.postura-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); }

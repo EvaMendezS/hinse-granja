@@ -208,12 +208,31 @@ function renderKPIs() {
 let chartPostura = null;
 let chartLote    = null;
 
+// Destruye el chart y resetea el canvas completamente para evitar loops de animación
+function destroyChart(chartRef, canvasId) {
+  if (chartRef) {
+    chartRef.destroy();
+    chartRef = null;
+  }
+  // Resetear canvas reemplazándolo por uno nuevo limpio
+  const old = document.getElementById(canvasId);
+  if (old) {
+    const nuevo = document.createElement('canvas');
+    nuevo.id = canvasId;
+    nuevo.height = 160;
+    old.parentNode.replaceChild(nuevo, old);
+  }
+  return null;
+}
+
 function renderCharts() {
   renderChartPostura();
   renderChartLote();
 }
 
 function renderChartPostura() {
+  chartPostura = destroyChart(chartPostura, 'chartPostura');
+
   const posturas = DB.get(KEYS.postura);
   const labels = [];
   const datos  = [];
@@ -226,7 +245,6 @@ function renderChartPostura() {
   }
 
   const ctx = document.getElementById('chartPostura').getContext('2d');
-  if (chartPostura) chartPostura.destroy();
   chartPostura = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -240,10 +258,11 @@ function renderChartPostura() {
       }]
     },
     options: {
+      animation: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color:'#6a8a6a', font:{ size:11 } }, grid:{ display:false } },
-        y: { ticks: { color:'#6a8a6a', font:{ size:11 } }, grid:{ color:'rgba(255,255,255,.04)' } }
+        x: { ticks: { color:'#8a6848', font:{ size:11 } }, grid:{ display:false } },
+        y: { ticks: { color:'#8a6848', font:{ size:11 } }, grid:{ color:'rgba(255,255,255,.04)' }, beginAtZero: true }
       },
       responsive: true,
       maintainAspectRatio: false,
@@ -252,24 +271,26 @@ function renderChartPostura() {
 }
 
 function renderChartLote() {
+  chartLote = destroyChart(chartLote, 'chartLote');
+
   const lotes = DB.get(KEYS.lotes);
-  const ctx   = document.getElementById('chartLote').getContext('2d');
-  if (chartLote) chartLote.destroy();
-  if (!lotes.length) { ctx.clearRect(0,0,300,160); return; }
+  if (!lotes.length) return;
 
   const labels = lotes.map(l => l.nombre.length > 12 ? l.nombre.slice(0,12)+'…' : l.nombre);
   const datos  = lotes.map(l => parseInt(l.cantidadActual) || 0);
-  const colors = ['#c8853a','#e8b84b','#5b9bd5','#e05555','#a78bfa','#f97316'];
+  const colors = ['#c8853a','#d4a043','#a86828','#7a9ab5','#c05050','#8a6848'];
 
+  const ctx = document.getElementById('chartLote').getContext('2d');
   chartLote = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{ data: datos, backgroundColor: colors, borderWidth: 0, hoverOffset: 6 }]
+      datasets: [{ data: datos, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }]
     },
     options: {
+      animation: false,
       plugins: {
-        legend: { position:'bottom', labels:{ color:'#9ab89a', font:{size:11}, padding:8 } }
+        legend: { position:'bottom', labels:{ color:'#c8a880', font:{size:11}, padding:8 } }
       },
       responsive: true,
       maintainAspectRatio: false,
