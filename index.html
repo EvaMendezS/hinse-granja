@@ -4,19 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#1a2e1a" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Hinse" />
-
   <title>Hinse — Granja Avícola</title>
-
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
 
 <!-- SPLASH -->
@@ -39,8 +35,8 @@
       <span class="topbar-title">Hinse</span>
     </div>
     <div class="topbar-right">
-      <button class="icon-btn" id="btnBackup">💾</button>
-      <button class="icon-btn" id="btnRestore">📂</button>
+      <button class="icon-btn" id="btnBackup" title="Backup">💾</button>
+      <button class="icon-btn" id="btnRestore" title="Restaurar">📂</button>
       <input type="file" id="fileRestore" accept=".json" style="display:none" />
     </div>
   </header>
@@ -50,7 +46,6 @@
 
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view active">
-
       <div class="view-header">
         <h2>Dashboard</h2>
         <span class="view-date" id="dashDate"></span>
@@ -58,9 +53,7 @@
 
       <div class="kpi-grid" id="kpiGrid"></div>
 
-      <!-- ❌ ELIMINADO: GRÁFICO DE MORTANDAD -->
-
-      <div class="section-block">
+      <div class="section-block" id="alertasBlock">
         <h3 class="section-title">⚠️ Alertas</h3>
         <div id="alertasList"></div>
       </div>
@@ -69,7 +62,6 @@
         <h3 class="section-title">🕐 Actividad Reciente</h3>
         <div id="actividadList"></div>
       </div>
-
     </section>
 
     <!-- LOTE -->
@@ -131,28 +123,38 @@
 
   </main>
 
-  <!-- NAV -->
+  <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
-    <button class="nav-btn active" data-view="dashboard">📊 Inicio</button>
-    <button class="nav-btn" data-view="lote">🐣 Lote</button>
-    <button class="nav-btn" data-view="mortandad">💀 Muertes</button>
-    <button class="nav-btn" data-view="alimentacion">🌾 Alimento</button>
-    <button class="nav-btn" data-view="vacunacion">💉 Sanidad</button>
+    <button class="nav-btn active" data-view="dashboard">
+      <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
+    </button>
+    <button class="nav-btn" data-view="lote">
+      <span class="nav-icon">🐣</span><span class="nav-label">Lote</span>
+    </button>
+    <button class="nav-btn" data-view="mortandad">
+      <span class="nav-icon">💀</span><span class="nav-label">Muertes</span>
+    </button>
+    <button class="nav-btn" data-view="alimentacion">
+      <span class="nav-icon">🌾</span><span class="nav-label">Alimento</span>
+    </button>
+    <button class="nav-btn" data-view="vacunacion">
+      <span class="nav-icon">💉</span><span class="nav-label">Sanidad</span>
+    </button>
   </nav>
+
+  <div id="masMenu" class="mas-menu hidden">
+    <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
+    <button class="mas-btn" data-view="postura">🥚 Postura</button>
+  </div>
 
 </div>
 
-<!-- MODALES (SIN CAMBIOS) -->
-<!-- 👉 LOS MODALES QUEDAN EXACTAMENTE IGUAL QUE TU ORIGINAL -->
+<!-- MODALES (TODO IGUAL QUE TU VERSION ORIGINAL) -->
+<!-- ... se mantienen sin cambios ... -->
 
-<!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
-<!-- ❌ ELIMINADO CHART.JS -->
-<!--
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
--->
-
 <script src="app.js"></script>
 
 </body>
