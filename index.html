@@ -8,6 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Hinse" />
   <title>Hinse — Granja Avícola</title>
+
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -52,17 +53,10 @@
         <span class="view-date" id="dashDate"></span>
       </div>
 
+      <!-- SOLO 3 KPI -->
       <div class="kpi-grid" id="kpiGrid"></div>
 
-      <!-- 🔴 CAMBIO: gráfico eliminado -->
-      <div class="chart-card" style="margin-bottom:16px">
-        <h3>Mortandad últimos 7 días</h3>
-        <div class="chart-placeholder">
-          📊 Estadísticas de mortandad desactivadas
-        </div>
-      </div>
-
-      <div class="section-block">
+      <div class="section-block" id="alertasBlock">
         <h3 class="section-title">⚠️ Alertas</h3>
         <div id="alertasList"></div>
       </div>
@@ -79,7 +73,7 @@
         <h2>Ingreso de Pollitas</h2>
         <button class="btn-primary" onclick="openModal('modalLote')">+ Nuevo Ingreso</button>
       </div>
-      <div id="loteList" class="card-list"></div>
+      <div id="loteList"></div>
     </section>
 
     <!-- POSTURA -->
@@ -88,10 +82,7 @@
         <h2>Registro de Postura</h2>
         <button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button>
       </div>
-      <div class="filter-bar">
-        <input type="month" id="filtroPosturaMes" onchange="renderPostura()" />
-      </div>
-      <div id="posturaList" class="card-list"></div>
+      <div id="posturaList"></div>
     </section>
 
     <!-- ALIMENTACIÓN -->
@@ -100,7 +91,7 @@
         <h2>Alimentación</h2>
         <button class="btn-primary" onclick="openModal('modalAlimentacion')">+ Registrar</button>
       </div>
-      <div id="alimentacionList" class="card-list"></div>
+      <div id="alimentacionList"></div>
     </section>
 
     <!-- VACUNACIÓN -->
@@ -109,7 +100,7 @@
         <h2>Vacunación</h2>
         <button class="btn-primary" onclick="openModal('modalVacunacion')">+ Registrar</button>
       </div>
-      <div id="vacunacionList" class="card-list"></div>
+      <div id="vacunacionList"></div>
     </section>
 
     <!-- MEDICACIÓN -->
@@ -118,7 +109,7 @@
         <h2>Medicación</h2>
         <button class="btn-primary" onclick="openModal('modalMedicacion')">+ Registrar</button>
       </div>
-      <div id="medicacionList" class="card-list"></div>
+      <div id="medicacionList"></div>
     </section>
 
     <!-- MORTANDAD -->
@@ -127,46 +118,24 @@
         <h2>Mortandad</h2>
         <button class="btn-primary" onclick="openModal('modalMortandad')">+ Registrar</button>
       </div>
-      <div id="mortandadList" class="card-list"></div>
+      <div id="mortandadList"></div>
     </section>
 
   </main>
 
-  <!-- BOTTOM NAV -->
+  <!-- NAV -->
   <nav class="bottom-nav">
-    <button class="nav-btn active" data-view="dashboard">
-      <span class="nav-icon">📊</span><span class="nav-label">Inicio</span>
-    </button>
-    <button class="nav-btn" data-view="lote">
-      <span class="nav-icon">🐣</span><span class="nav-label">Lote</span>
-    </button>
-    <button class="nav-btn" data-view="mortandad">
-      <span class="nav-icon">💀</span><span class="nav-label">Muertes</span>
-    </button>
-    <button class="nav-btn" data-view="alimentacion">
-      <span class="nav-icon">🌾</span><span class="nav-label">Alimento</span>
-    </button>
-    <button class="nav-btn" data-view="vacunacion">
-      <span class="nav-icon">💉</span><span class="nav-label">Sanidad</span>
-    </button>
+    <button class="nav-btn active" data-view="dashboard">📊 Inicio</button>
+    <button class="nav-btn" data-view="lote">🐣 Lote</button>
+    <button class="nav-btn" data-view="mortandad">💀 Muertes</button>
+    <button class="nav-btn" data-view="alimentacion">🌾 Alimento</button>
+    <button class="nav-btn" data-view="vacunacion">💉 Sanidad</button>
   </nav>
-
-  <!-- MÁS MENU -->
-  <div id="masMenu" class="mas-menu hidden">
-    <button class="mas-btn" data-view="medicacion">💊 Medicación</button>
-    <button class="mas-btn" data-view="postura">🥚 Postura</button>
-  </div>
 
 </div>
 
-<!-- MODALES (SIN CAMBIOS) -->
-<!-- ... TODO TU CÓDIGO DE MODALES SE MANTIENE IGUAL ... -->
-
-<!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
-<!-- 🔴 CAMBIO IMPORTANTE: se eliminó Chart.js -->
 <script src="app.js"></script>
-
 </body>
 </html>
