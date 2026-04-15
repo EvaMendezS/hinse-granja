@@ -1,5 +1,5 @@
 /* GranjaHinse — Service Worker v1.1 */
-const CACHE = 'hinse-v1.4';
+const CACHE = 'hinse-v1.1';
 const ASSETS = [
   './',
   './index.html',
