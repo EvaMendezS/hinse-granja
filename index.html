@@ -1,38 +1,30 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#241a12" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Hinse" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <meta name="theme-color" content="#241a12"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Hinse"/>
   <title>Hinse — Granja Avícola</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon-192.png" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="icon" href="icon-192.png"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-<!-- SPLASH -->
 <div id="splash">
   <div class="splash-inner">
     <div class="splash-egg">
       <svg viewBox="0 0 80 96" xmlns="http://www.w3.org/2000/svg" width="80" height="96">
         <defs>
-          <radialGradient id="eggGrad" cx="38%" cy="35%" r="65%">
-            <stop offset="0%" stop-color="#f5e6c8"/>
-            <stop offset="55%" stop-color="#e8c87a"/>
-            <stop offset="100%" stop-color="#a86828"/>
-          </radialGradient>
-          <radialGradient id="eggShine" cx="32%" cy="28%" r="30%">
-            <stop offset="0%" stop-color="#fff8ee" stop-opacity="0.7"/>
-            <stop offset="100%" stop-color="#fff8ee" stop-opacity="0"/>
-          </radialGradient>
+          <radialGradient id="eg" cx="38%" cy="35%" r="65%"><stop offset="0%" stop-color="#f5e6c8"/><stop offset="55%" stop-color="#e8c87a"/><stop offset="100%" stop-color="#a86828"/></radialGradient>
+          <radialGradient id="es" cx="32%" cy="28%" r="30%"><stop offset="0%" stop-color="#fff8ee" stop-opacity="0.7"/><stop offset="100%" stop-color="#fff8ee" stop-opacity="0"/></radialGradient>
         </defs>
-        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#eggGrad)"/>
-        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#eggShine)"/>
+        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#eg)"/>
+        <ellipse cx="40" cy="52" rx="32" ry="40" fill="url(#es)"/>
       </svg>
     </div>
     <h1>Hinse</h1>
@@ -41,29 +33,31 @@
   </div>
 </div>
 
-<!-- APP -->
 <div id="app" class="hidden">
   <header class="topbar">
     <div class="topbar-left">
       <span class="topbar-icon">🐔</span>
-      <div>
-        <span class="topbar-title">Hinse</span>
-        <span class="topbar-subtitle">Granja Avícola</span>
-      </div>
+      <div><span class="topbar-title">Hinse</span><span class="topbar-subtitle">Granja Avícola</span></div>
     </div>
     <div class="topbar-right">
-      <button class="icon-btn" id="btnPDF" title="Exportar PDF">📄</button>
-      <button class="icon-btn" id="btnBackup" title="Backup">💾</button>
+      <button class="icon-btn" id="btnPDF" title="PDF">📄</button>
+      <button class="icon-btn" onclick="exportarExcel()" title="Excel">📊</button>
+      <button class="icon-btn" id="btnBackup" title="Backup JSON">💾</button>
       <button class="icon-btn" id="btnRestore" title="Restaurar">📂</button>
-      <input type="file" id="fileRestore" accept=".json" style="display:none" />
+      <input type="file" id="fileRestore" accept=".json" style="display:none"/>
     </div>
   </header>
 
   <main class="main-content">
+
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view active">
       <div class="view-header"><h2>Dashboard</h2><span class="view-date" id="dashDate"></span></div>
       <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="section-block">
+        <h3 class="section-title">🏚️ Estado por Galpón</h3>
+        <div id="galponCards"></div>
+      </div>
       <div class="section-block"><h3 class="section-title">⚠️ Alertas</h3><div id="alertasList"></div></div>
       <div class="section-block"><h3 class="section-title">🕐 Actividad Reciente</h3><div id="actividadList"></div></div>
     </section>
@@ -95,7 +89,7 @@
     <!-- POSTURA -->
     <section id="view-postura" class="view">
       <div class="view-header"><h2>Postura</h2><button class="btn-primary" onclick="openModal('modalPostura')">+ Registrar</button></div>
-      <div class="filter-bar"><input type="month" id="filtroPosturaMes" onchange="renderPostura()" /></div>
+      <div class="filter-bar"><input type="month" id="filtroPosturaMes" onchange="renderPostura()"/></div>
       <div id="posturaList" class="card-list"></div>
     </section>
 
@@ -108,7 +102,7 @@
     <!-- ENFERMEDADES -->
     <section id="view-enfermedades" class="view">
       <div class="view-header"><h2>Enfermedades</h2><button class="btn-primary" onclick="openModal('modalEnfermedad')">+ Registrar</button></div>
-      <div class="export-bar"><button class="btn-export" onclick="exportarCSV('hinse_enfermedades','enfermedades')">📊 Exportar CSV</button></div>
+      <div class="export-bar"><button class="btn-export" onclick="exportarCSV('hinse_enfermedades','enfermedades')">📊 CSV</button></div>
       <div id="enfermedadList" class="card-list"></div>
     </section>
 
@@ -123,29 +117,28 @@
       <div class="view-header"><h2>Historial de Lote</h2></div>
       <div class="filter-bar" style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <select id="historialLoteSelect" onchange="onHistorialChange()" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 12px;font-size:.9rem"></select>
-        <button class="btn-export" onclick="exportarCSV('hinse_lotes','lotes')">📊 CSV</button>
       </div>
       <div id="historialResumen"></div>
       <div class="section-block"><h3 class="section-title">📋 Todos los eventos</h3><div id="historialEventos"></div></div>
     </section>
+
   </main>
 
-  <!-- BOTTOM NAV -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">📊</span><span class="nav-label">Inicio</span></button>
     <button class="nav-btn" data-view="lote"><span class="nav-icon">🐣</span><span class="nav-label">Lote</span></button>
     <button class="nav-btn" data-view="mortandad"><span class="nav-icon">💀</span><span class="nav-label">Muertes</span></button>
     <button class="nav-btn" data-view="alimentacion"><span class="nav-icon">🌾</span><span class="nav-label">Alimento</span></button>
-    <button class="nav-btn" data-view="vacunacion"><span class="nav-icon">💉</span><span class="nav-label">Sanidad</span></button>
+    <button class="nav-btn" data-view="vacunacion"><span class="nav-icon">💉</span><span class="nav-label">Vacuna</span></button>
     <button class="nav-btn" id="navMasBtn"><span class="nav-icon">☰</span><span class="nav-label">Más</span></button>
   </nav>
 
   <div id="masMenu" class="mas-menu hidden">
-    <button class="mas-btn" onclick="navigateTo('postura');closeMenu()">🥚 Postura</button>
-    <button class="mas-btn" onclick="navigateTo('medicacion');closeMenu()">💊 Medicación</button>
-    <button class="mas-btn" onclick="navigateTo('enfermedades');closeMenu()">🦠 Enfermedades</button>
-    <button class="mas-btn" onclick="navigateTo('notas');closeMenu()">📷 Notas de Campo</button>
-    <button class="mas-btn" onclick="navigateTo('historial');closeMenu()">📋 Historial Lote</button>
+    <button class="mas-btn" onclick="navigateTo('postura')">🥚 Postura</button>
+    <button class="mas-btn" onclick="navigateTo('medicacion')">💊 Medicación</button>
+    <button class="mas-btn" onclick="navigateTo('enfermedades')">🦠 Enfermedades</button>
+    <button class="mas-btn" onclick="navigateTo('notas')">📷 Notas de Campo</button>
+    <button class="mas-btn" onclick="navigateTo('historial')">📋 Historial Lote</button>
   </div>
 </div>
 
@@ -155,46 +148,64 @@
 <div id="modalLote" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>🐣 Ingreso de Pollitas</h3><button class="modal-close" onclick="closeModal('modalLote')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="loteId" />
-    <div class="field-group"><label>Fecha de Ingreso</label><input type="date" id="loteFecha" /></div>
-    <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A" /></div>
-    <div class="field-group"><label>Galpón</label><input type="text" id="loteGalpon" placeholder="Ej: Galpón 1" /></div>
-    <div class="field-group"><label>Cantidad de Pollitas</label><input type="number" id="loteCantidad" placeholder="0" /></div>
-    <div class="field-group"><label>Raza / Línea</label><input type="text" id="loteRaza" placeholder="Ej: Isa Brown, Lohmann" /></div>
-    <div class="field-group"><label>Semana de vida al ingreso</label><input type="number" id="loteSemana" placeholder="0" /></div>
-    <div class="field-group"><label>Procedencia / Proveedor</label><input type="text" id="loteProcedencia" placeholder="Nombre del proveedor" /></div>
-    <div class="field-group"><label>Etapa</label><select id="loteEtapa"><option value="recria">Recría (0–18 semanas)</option><option value="produccion">Producción (18+ semanas)</option></select></div>
-    <div class="field-group"><label>Notas</label><textarea id="loteNotas" rows="2" placeholder="Observaciones..."></textarea></div>
+    <input type="hidden" id="loteId"/>
+    <div class="field-group"><label>Fecha de Ingreso</label><input type="date" id="loteFecha"/></div>
+    <div class="field-group"><label>Nombre / Lote</label><input type="text" id="loteNombre" placeholder="Ej: Lote A"/></div>
+    <div class="field-group"><label>Galpón</label><input type="text" id="loteGalpon" placeholder="Ej: Galpón 1"/></div>
+    <div class="field-group"><label>Cantidad de Pollitas</label><input type="number" id="loteCantidad" placeholder="0"/></div>
+    <div class="field-group"><label>Raza / Línea</label><input type="text" id="loteRaza" placeholder="Ej: Isa Brown"/></div>
+    <div class="field-group"><label>Semana de vida al ingreso</label><input type="number" id="loteSemana" placeholder="0"/></div>
+    <div class="field-group"><label>Procedencia / Proveedor</label><input type="text" id="loteProcedencia"/></div>
+    <div class="field-group"><label>Etapa</label><select id="loteEtapa"><option value="recria">Recría (0–18 sem.)</option><option value="produccion">Producción (18+ sem.)</option></select></div>
+    <div class="field-group"><label>Notas</label><textarea id="loteNotas" rows="2"></textarea></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalLote')">Cancelar</button><button class="btn-primary" onclick="saveLote()">Guardar</button></div>
 </div></div>
 
-<!-- RUPTURA DE POSTURA -->
+<!-- RUPTURA -->
 <div id="modalRuptura" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>🥚 Ruptura de Postura</h3><button class="modal-close" onclick="closeModal('modalRuptura')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="rupturaLoteId" />
+    <input type="hidden" id="rupturaLoteId"/>
     <div id="rupturaInfo" class="ruptura-info"></div>
-    <div class="field-group"><label>Fecha de Ruptura de Postura</label><input type="date" id="rupturaFecha" /></div>
-    <div class="field-group"><label>Semana de vida al inicio de postura</label><input type="number" id="rupturaSemana" placeholder="Ej: 18, 19, 20..." /></div>
-    <div class="field-group"><label>% Postura inicial estimado</label><input type="number" id="rupturaPctInicial" placeholder="Ej: 5, 10, 15..." step="0.5" /></div>
-    <div class="field-group"><label>Notas</label><textarea id="rupturaNotas" rows="2" placeholder="Observaciones del inicio de postura..."></textarea></div>
-    <div class="ruptura-aviso">⚠️ Esto cambiará el lote de <strong>Recría</strong> a <strong>Producción</strong> automáticamente.</div>
+    <div class="field-group"><label>Fecha de Ruptura</label><input type="date" id="rupturaFecha"/></div>
+    <div class="field-group"><label>Semana de vida al inicio de postura</label><input type="number" id="rupturaSemana" placeholder="18, 19, 20..."/></div>
+    <div class="field-group"><label>% Postura inicial estimado</label><input type="number" id="rupturaPctInicial" placeholder="Ej: 5, 10, 15..." step="0.5"/></div>
+    <div class="field-group"><label>Notas</label><textarea id="rupturaNotas" rows="2"></textarea></div>
+    <div class="ruptura-aviso">⚠️ Cambiará el lote de <strong>Recría → Producción</strong> automáticamente.</div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalRuptura')">Cancelar</button><button class="btn-primary btn-ruptura" onclick="saveRuptura()">✅ Confirmar Ruptura</button></div>
 </div></div>
 
-<!-- POSTURA -->
+<!-- POSTURA (por maple) -->
 <div id="modalPostura" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>🥚 Registro de Postura</h3><button class="modal-close" onclick="closeModal('modalPostura')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="posturaId" />
-    <div class="field-group"><label>Fecha</label><input type="date" id="posturaFecha" /></div>
+    <input type="hidden" id="posturaId"/>
+    <div class="field-group"><label>Fecha</label><input type="date" id="posturaFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="posturaLote"></select></div>
-    <div class="field-group"><label>Huevos Recogidos</label><input type="number" id="posturaHuevos" placeholder="0" /></div>
-    <div class="field-group"><label>Huevos Rotos / Descarte</label><input type="number" id="posturaRotos" placeholder="0" value="0" /></div>
-    <div class="field-group"><label>% Postura calculado</label><input type="text" id="posturaPorc" readonly class="readonly" placeholder="Se calcula automático" /></div>
-    <div class="field-group"><label>Notas</label><textarea id="posturaNotas" rows="2" placeholder="Observaciones..."></textarea></div>
+    <div class="maple-grid">
+      <div class="maple-card">
+        <div class="maple-icon">🥚🥚</div>
+        <div class="maple-label">Maples de 20</div>
+        <input type="number" id="posturaMaple20" placeholder="0" min="0" class="maple-input"/>
+        <div class="maple-sub" id="sub20">= 0 huevos</div>
+      </div>
+      <div class="maple-card">
+        <div class="maple-icon">🥚🥚🥚</div>
+        <div class="maple-label">Maples de 30</div>
+        <input type="number" id="posturaMaple30" placeholder="0" min="0" class="maple-input"/>
+        <div class="maple-sub" id="sub30">= 0 huevos</div>
+      </div>
+    </div>
+    <div class="field-group"><label>Huevos sueltos (sin maple)</label><input type="number" id="posturaHuevosSueltos" placeholder="0" min="0"/></div>
+    <div class="postura-total-box">
+      <span class="postura-total-lbl">Total calculado</span>
+      <input type="text" id="posturaHuevosTotal" readonly class="postura-total-val" placeholder="0"/>
+      <input type="text" id="posturaPorc" readonly class="postura-pct-val" placeholder="—%"/>
+    </div>
+    <div class="field-group"><label>Huevos Rotos / Descarte</label><input type="number" id="posturaRotos" placeholder="0" value="0"/></div>
+    <div class="field-group"><label>Notas</label><textarea id="posturaNotas" rows="2"></textarea></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalPostura')">Cancelar</button><button class="btn-primary" onclick="savePostura()">Guardar</button></div>
 </div></div>
@@ -203,14 +214,14 @@
 <div id="modalAlimentacion" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>🌾 Alimentación</h3><button class="modal-close" onclick="closeModal('modalAlimentacion')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="alimentacionId" />
-    <div class="field-group"><label>Fecha</label><input type="date" id="alimentacionFecha" /></div>
+    <input type="hidden" id="alimentacionId"/>
+    <div class="field-group"><label>Fecha</label><input type="date" id="alimentacionFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="alimentacionLote"></select></div>
-    <div class="field-group"><label>Tipo de Alimento</label><input type="text" id="alimentacionTipo" placeholder="Ej: Balanceado postura, maíz..." /></div>
-    <div class="field-group"><label>Cantidad (kg)</label><input type="number" id="alimentacionKg" placeholder="0" step="0.5" /></div>
-    <div class="field-group"><label>Consumo por ave (g/día)</label><input type="number" id="alimentacionGrAve" placeholder="0" /></div>
-    <div class="field-group"><label>Proveedor</label><input type="text" id="alimentacionProveedor" placeholder="Nombre del proveedor" /></div>
-    <div class="field-group"><label>Costo ($)</label><input type="number" id="alimentacionCosto" placeholder="0.00" step="0.01" /></div>
+    <div class="field-group"><label>Tipo de Alimento</label><input type="text" id="alimentacionTipo" placeholder="Ej: Balanceado postura"/></div>
+    <div class="field-group"><label>Cantidad (kg)</label><input type="number" id="alimentacionKg" placeholder="0" step="0.5"/></div>
+    <div class="field-group"><label>Consumo por ave (g/día)</label><input type="number" id="alimentacionGrAve" placeholder="0"/></div>
+    <div class="field-group"><label>Proveedor</label><input type="text" id="alimentacionProveedor"/></div>
+    <div class="field-group"><label>Costo ($)</label><input type="number" id="alimentacionCosto" placeholder="0.00" step="0.01"/></div>
     <div class="field-group"><label>Notas</label><textarea id="alimentacionNotas" rows="2"></textarea></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalAlimentacion')">Cancelar</button><button class="btn-primary" onclick="saveAlimentacion()">Guardar</button></div>
@@ -220,14 +231,14 @@
 <div id="modalVacunacion" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>💉 Vacunación</h3><button class="modal-close" onclick="closeModal('modalVacunacion')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="vacunacionId" />
-    <div class="field-group"><label>Fecha</label><input type="date" id="vacunacionFecha" /></div>
+    <input type="hidden" id="vacunacionId"/>
+    <div class="field-group"><label>Fecha</label><input type="date" id="vacunacionFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="vacunacionLote"></select></div>
-    <div class="field-group"><label>Vacuna</label><input type="text" id="vacunaNombre" placeholder="Ej: Newcastle, Bronquitis..." /></div>
+    <div class="field-group"><label>Vacuna</label><input type="text" id="vacunaNombre" placeholder="Ej: Newcastle, Bronquitis..."/></div>
     <div class="field-group"><label>Vía de Aplicación</label><select id="vacunaVia"><option value="agua">Agua de bebida</option><option value="ocular">Ocular</option><option value="nasal">Nasal</option><option value="inyectable">Inyectable</option><option value="spray">Spray</option><option value="ala">Punción alar</option></select></div>
-    <div class="field-group"><label>Dosis</label><input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves" /></div>
-    <div class="field-group"><label>Aplicado por</label><input type="text" id="vacunaAplicador" placeholder="Nombre del responsable" /></div>
-    <div class="field-group"><label>Próxima dosis</label><input type="date" id="vacunaProxima" /></div>
+    <div class="field-group"><label>Dosis</label><input type="text" id="vacunaDosis" placeholder="Ej: 1 frasco/1000 aves"/></div>
+    <div class="field-group"><label>Aplicado por</label><input type="text" id="vacunaAplicador"/></div>
+    <div class="field-group"><label>Próxima dosis</label><input type="date" id="vacunaProxima"/></div>
     <div class="field-group"><label>Notas</label><textarea id="vacunaNotas" rows="2"></textarea></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalVacunacion')">Cancelar</button><button class="btn-primary" onclick="saveVacunacion()">Guardar</button></div>
@@ -237,14 +248,14 @@
 <div id="modalMedicacion" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>💊 Medicación</h3><button class="modal-close" onclick="closeModal('modalMedicacion')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="medicacionId" />
-    <div class="field-group"><label>Fecha inicio</label><input type="date" id="medicacionFecha" /></div>
+    <input type="hidden" id="medicacionId"/>
+    <div class="field-group"><label>Fecha inicio</label><input type="date" id="medicacionFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="medicacionLote"></select></div>
-    <div class="field-group"><label>Medicamento</label><input type="text" id="medicamentoNombre" placeholder="Nombre del medicamento" /></div>
-    <div class="field-group"><label>Motivo / Diagnóstico</label><input type="text" id="medicamentoMotivo" placeholder="Ej: Coccidiosis, CRD..." /></div>
-    <div class="field-group"><label>Dosis</label><input type="text" id="medicamentoDosis" placeholder="Ej: 1ml/L agua" /></div>
-    <div class="field-group"><label>Duración (días)</label><input type="number" id="medicamentoDias" placeholder="0" /></div>
-    <div class="field-group"><label>Veterinario responsable</label><input type="text" id="medicamentoVet" placeholder="Nombre del veterinario" /></div>
+    <div class="field-group"><label>Medicamento</label><input type="text" id="medicamentoNombre" placeholder="Nombre del medicamento"/></div>
+    <div class="field-group"><label>Motivo / Diagnóstico</label><input type="text" id="medicamentoMotivo" placeholder="Ej: Coccidiosis, CRD..."/></div>
+    <div class="field-group"><label>Dosis</label><input type="text" id="medicamentoDosis" placeholder="Ej: 1ml/L agua"/></div>
+    <div class="field-group"><label>Duración (días)</label><input type="number" id="medicamentoDias" placeholder="0"/></div>
+    <div class="field-group"><label>Veterinario responsable</label><input type="text" id="medicamentoVet"/></div>
     <div class="field-group"><label>Notas</label><textarea id="medicamentoNotas" rows="2"></textarea></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalMedicacion')">Cancelar</button><button class="btn-primary" onclick="saveMedicacion()">Guardar</button></div>
@@ -254,32 +265,37 @@
 <div id="modalMortandad" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>💀 Mortandad</h3><button class="modal-close" onclick="closeModal('modalMortandad')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="mortandadId" />
-    <div class="field-group"><label>Fecha</label><input type="date" id="mortandadFecha" /></div>
+    <input type="hidden" id="mortandadId"/>
+    <div class="field-group"><label>Fecha</label><input type="date" id="mortandadFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="mortandadLote"></select></div>
-    <div class="field-group"><label>Cantidad de Bajas</label><input type="number" id="mortandadCantidad" placeholder="0" /></div>
-    <div class="field-group"><label>Causa probable</label><select id="mortandadCausa"><option value="enfermedad">Enfermedad</option><option value="estres_calor">Estrés por calor</option><option value="estres_frio">Estrés por frío</option><option value="accidente">Accidente / Manejo</option><option value="depredador">Depredador</option><option value="desconocida">Causa desconocida</option><option value="otra">Otra</option></select></div>
-    <div class="field-group"><label>Descripción / Síntomas</label><textarea id="mortandadDesc" rows="2" placeholder="Síntomas observados..."></textarea></div>
-    <div class="field-group"><label>¿Se realizó necropsia?</label><select id="mortandadNecropsia"><option value="no">No</option><option value="si">Sí</option><option value="pendiente">Pendiente</option></select></div>
+    <div class="field-group"><label>Cantidad de Bajas</label><input type="number" id="mortandadCantidad" placeholder="0"/></div>
+    <div class="field-group"><label>Causa probable</label><select id="mortandadCausa"><option value="enfermedad">Enfermedad</option><option value="estres_calor">Estrés por calor</option><option value="estres_frio">Estrés por frío</option><option value="accidente">Accidente</option><option value="depredador">Depredador</option><option value="desconocida">Desconocida</option><option value="otra">Otra</option></select></div>
+    <div class="field-group"><label>Descripción / Síntomas</label><textarea id="mortandadDesc" rows="2"></textarea></div>
+    <div class="field-group"><label>¿Necropsia?</label><select id="mortandadNecropsia"><option value="no">No</option><option value="si">Sí</option><option value="pendiente">Pendiente</option></select></div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalMortandad')">Cancelar</button><button class="btn-primary" onclick="saveMortandad()">Guardar</button></div>
 </div></div>
 
-<!-- ENFERMEDAD -->
+<!-- ENFERMEDAD (con foto) -->
 <div id="modalEnfermedad" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>🦠 Enfermedad</h3><button class="modal-close" onclick="closeModal('modalEnfermedad')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="enfermedadId" />
-    <div class="field-group"><label>Fecha de detección</label><input type="date" id="enfermedadFecha" /></div>
+    <input type="hidden" id="enfermedadId"/>
+    <div class="field-group"><label>Fecha de detección</label><input type="date" id="enfermedadFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="enfermedadLote"></select></div>
-    <div class="field-group"><label>Nombre / Diagnóstico</label><input type="text" id="enfermedadNombre" placeholder="Ej: Marek, Newcastle, CRD..." /></div>
+    <div class="field-group"><label>Nombre / Diagnóstico</label><input type="text" id="enfermedadNombre" placeholder="Ej: Marek, Newcastle..."/></div>
     <div class="field-group"><label>Síntomas observados</label><textarea id="enfermedadSintomas" rows="2" placeholder="Describí los síntomas..."></textarea></div>
-    <div class="field-group"><label>Aves afectadas</label><input type="number" id="enfermedadAfectadas" placeholder="0" /></div>
-    <div class="field-group"><label>Veterinario</label><input type="text" id="enfermedadVet" placeholder="Nombre del veterinario" /></div>
-    <div class="field-group"><label>Tratamiento indicado</label><textarea id="enfermedadTratamiento" rows="2" placeholder="Medicamentos, dosis, duración..."></textarea></div>
+    <div class="field-group"><label>Aves afectadas</label><input type="number" id="enfermedadAfectadas" placeholder="0"/></div>
+    <div class="field-group"><label>Veterinario</label><input type="text" id="enfermedadVet"/></div>
+    <div class="field-group"><label>Tratamiento indicado</label><textarea id="enfermedadTratamiento" rows="2"></textarea></div>
     <div class="field-group"><label>Estado</label><select id="enfermedadEstado"><option value="activa">Activa</option><option value="controlada">Controlada</option><option value="resuelta">Resuelta</option></select></div>
-    <div class="field-group"><label>Fecha de cierre</label><input type="date" id="enfermedadCierre" /></div>
-    <div class="field-group"><label>Notas adicionales</label><textarea id="enfermedadNotas" rows="2"></textarea></div>
+    <div class="field-group"><label>Fecha de cierre</label><input type="date" id="enfermedadCierre"/></div>
+    <div class="field-group"><label>Notas</label><textarea id="enfermedadNotas" rows="2"></textarea></div>
+    <div class="field-group">
+      <label>📷 Foto (opcional)</label>
+      <input type="file" id="enfermedadFoto" accept="image/*" capture="environment" style="color:var(--text2);padding:8px 0"/>
+      <div id="enfermedadFotoPreview" class="foto-preview"></div>
+    </div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalEnfermedad')">Cancelar</button><button class="btn-primary" onclick="saveEnfermedad()">Guardar</button></div>
 </div></div>
@@ -288,28 +304,27 @@
 <div id="modalNota" class="modal-overlay hidden"><div class="modal">
   <div class="modal-header"><h3>📷 Nota de Campo</h3><button class="modal-close" onclick="closeModal('modalNota')">✕</button></div>
   <div class="modal-body">
-    <input type="hidden" id="notaId" />
-    <div class="field-group"><label>Fecha</label><input type="date" id="notaFecha" /></div>
+    <input type="hidden" id="notaId"/>
+    <div class="field-group"><label>Fecha</label><input type="date" id="notaFecha"/></div>
     <div class="field-group"><label>Lote</label><select id="notaLote"></select></div>
-    <div class="field-group"><label>Observación / Nota</label><textarea id="notaTexto" rows="3" placeholder="Describí lo que observás..."></textarea></div>
+    <div class="field-group"><label>Observación</label><textarea id="notaTexto" rows="3" placeholder="Describí lo que observás..."></textarea></div>
     <div class="field-group">
-      <label>Foto (opcional)</label>
-      <input type="file" id="notaFoto" accept="image/*" capture="environment" style="color:var(--text2);padding:8px 0" />
+      <label>📷 Foto (opcional)</label>
+      <input type="file" id="notaFoto" accept="image/*" capture="environment" style="color:var(--text2);padding:8px 0"/>
       <div id="notaFotoPreview" class="foto-preview"></div>
     </div>
   </div>
   <div class="modal-footer"><button class="btn-secondary" onclick="closeModal('modalNota')">Cancelar</button><button class="btn-primary" onclick="saveNota()">Guardar</button></div>
 </div></div>
 
-<!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
 <!-- PDF OVERLAY -->
 <div id="pdfOverlay" class="pdf-overlay hidden">
   <div class="pdf-toolbar">
-    <span style="font-weight:600;color:#6b3e1e">📄 Informe Granja Hinse</span>
+    <span style="font-weight:600;color:#6b3e1e">📄 Vista Previa — Granja Hinse</span>
     <div style="display:flex;gap:8px">
-      <button class="btn-pdf-print" onclick="imprimirPDF()">🖨️ Guardar PDF</button>
+      <button class="btn-pdf-print" onclick="imprimirPDF()">🖨️ Imprimir / Guardar PDF</button>
       <button class="btn-pdf-close" onclick="cerrarPDF()">✕ Cerrar</button>
     </div>
   </div>
