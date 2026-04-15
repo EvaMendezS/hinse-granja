@@ -1,296 +1,358 @@
 /* ============================================================
-   Hinse — Granja Avícola v3.0
+   Hinse — Granja Avícola v3.1
+   app.js — wired 100% via addEventListener, zero onclick attrs
    ============================================================ */
 'use strict';
 
 // ─── STORAGE ─────────────────────────────────────────────────
 const DB = {
-  get(key)      { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
-  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
+  get(k)      { try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; } },
+  set(k, v)   { localStorage.setItem(k, JSON.stringify(v)); },
 };
 const KEYS = {
   lotes:'hinse_lotes', postura:'hinse_postura', alimentacion:'hinse_alimentacion',
   vacunacion:'hinse_vacunacion', medicacion:'hinse_medicacion', mortandad:'hinse_mortandad',
-  enfermedades:'hinse_enfermedades', notas:'hinse_notas',
+  enfermedades:'hinse_enfermedades', notas:'hinse_notas', formulas:'hinse_formulas',
 };
 
 // ─── UTILS ───────────────────────────────────────────────────
 const uid     = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const fmtDate = d => { if(!d) return '—'; const [y,m,dia]=d.split('-'); return `${dia}/${m}/${y}`; };
 const today   = () => new Date().toISOString().split('T')[0];
-const MAPLE20 = 20; const MAPLE30 = 30;
+const $       = id => document.getElementById(id);
+const val     = id => { const el=$(id); return el ? el.value : ''; };
+const setVal  = (id, v) => { const el=$(id); if(el) el.value = v ?? ''; };
 
-function semanasDesde(fechaISO, base=0) {
-  if(!fechaISO) return parseInt(base)||0;
-  return Math.floor((Date.now()-new Date(fechaISO).getTime())/(7*24*3600*1000))+(parseInt(base)||0);
+function semanasDesde(f, base=0) {
+  if(!f) return parseInt(base)||0;
+  return Math.floor((Date.now()-new Date(f).getTime())/(7*24*3600*1000))+(parseInt(base)||0);
 }
-function showToast(msg,ms=2400){
-  const el=document.getElementById('toast');
+function showToast(msg, ms=2400) {
+  const el=$('toast'); if(!el) return;
   el.textContent=msg; el.classList.remove('hidden');
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.add('hidden'),ms);
 }
+function emptyState(icon, msg) {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${msg}</p></div>`;
+}
+function getLoteNombre(id) {
+  return DB.get(KEYS.lotes).find(x=>x.id===id)?.nombre || '(lote eliminado)';
+}
+function fillLoteSelect(selectId) {
+  const sel=$(selectId); if(!sel) return;
+  const lotes=DB.get(KEYS.lotes);
+  sel.innerHTML = lotes.length
+    ? lotes.map(l=>`<option value="${l.id}">${l.nombre} — ${l.galpon||'Sin galpón'} (${l.cantidadActual||0})</option>`).join('')
+    : '<option value="">— Sin lotes registrados —</option>';
+}
 
-// ─── SPLASH ───────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  setTimeout(()=>{
-    document.getElementById('splash').style.opacity='0';
-    setTimeout(()=>{
-      document.getElementById('splash').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
+// ─── MODAL ENGINE ─────────────────────────────────────────────
+function openModal(id) {
+  const m=$(id); if(!m) return;
+  m.classList.remove('hidden');
+  document.body.style.overflow='hidden';
+  // Pre-fill date inputs
+  m.querySelectorAll('input[type=date]').forEach(el=>{ if(!el.value) el.value=today(); });
+  // Fill lote selects
+  ['posturaLote','alimentacionLote','vacunacionLote','medicacionLote',
+   'mortandadLote','enfermedadLote','notaLote'].forEach(sid=>{
+    if(m.querySelector(`#${sid}`)) fillLoteSelect(sid);
+  });
+  if(id==='modalPostura') { fillLoteSelect('posturaLote'); calcPosturaTotal(); }
+}
+function closeModal(id) {
+  const m=$(id); if(!m) return;
+  m.classList.add('hidden');
+  document.body.style.overflow='';
+  // Clear all inputs except hidden
+  m.querySelectorAll('input:not([type=hidden]):not([type=file]),select,textarea').forEach(el=>{
+    el.tagName==='SELECT' ? (el.selectedIndex=0) : (el.value='');
+  });
+  m.querySelectorAll('input[type=hidden]').forEach(el=>el.value='');
+  m.querySelectorAll('input[type=date]').forEach(el=>el.value=today());
+  m.querySelectorAll('.foto-preview').forEach(p=>p.innerHTML='');
+}
+
+// ─── SPLASH → INIT ───────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    $('splash').style.opacity='0';
+    setTimeout(() => {
+      $('splash').classList.add('hidden');
+      $('app').classList.remove('hidden');
       init();
-    },500);
-  },2000);
+    }, 500);
+  }, 2000);
 });
 
 // ─── INIT ─────────────────────────────────────────────────────
-function init(){
-  setupNav();
-  setupBackup();
-  setupPDF();
+function init() {
+  wireNav();
+  wireModals();
+  wireButtons();
+  wirePosturaCalc();
+  wireFotoPreviews();
+  wireBackup();
+  wirePDF();
   populateDashDate();
+  renderAll();
+}
+
+function renderAll() {
   renderDashboard();
   renderLote(); renderPostura(); renderAlimentacion();
   renderVacunacion(); renderMedicacion(); renderMortandad();
-  renderEnfermedades(); renderNotas();
-  document.querySelectorAll('input[type="date"]').forEach(i=>{ if(!i.value) i.value=today(); });
-
-  // Postura: listeners para cálculo automático por maple
-  ['posturaMaple20','posturaMaple30','posturaHuevosSueltos','posturaLote'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.addEventListener('input', calcPosturaTotal);
-    if(el) el.addEventListener('change', calcPosturaTotal);
-  });
-
-  // Foto enfermedad preview
-  document.getElementById('enfermedadFoto').addEventListener('change',function(){
-    const p=document.getElementById('enfermedadFotoPreview');
-    if(this.files[0]){const r=new FileReader();r.onload=ev=>{p.innerHTML=`<img src="${ev.target.result}">`;};r.readAsDataURL(this.files[0]);}
-  });
-  // Foto nota preview
-  document.getElementById('notaFoto').addEventListener('change',function(){
-    const p=document.getElementById('notaFotoPreview');
-    if(this.files[0]){const r=new FileReader();r.onload=ev=>{p.innerHTML=`<img src="${ev.target.result}">`;};r.readAsDataURL(this.files[0]);}
-  });
+  renderEnfermedades(); renderNotas(); renderFormulas();
 }
 
-// ─── POSTURA: CÁLCULO POR MAPLE ──────────────────────────────
-function calcPosturaTotal(){
-  const m20  = parseInt(document.getElementById('posturaMaple20').value)||0;
-  const m30  = parseInt(document.getElementById('posturaMaple30').value)||0;
-  const suel = parseInt(document.getElementById('posturaHuevosSueltos').value)||0;
-  const total= m20*MAPLE20 + m30*MAPLE30 + suel;
-  document.getElementById('posturaHuevosTotal').value = total;
-
-  // % automático
-  const loteId=document.getElementById('posturaLote').value;
-  const lote=DB.get(KEYS.lotes).find(l=>l.id===loteId);
-  const aves=lote?(parseInt(lote.cantidadActual)||0):0;
-  document.getElementById('posturaPorc').value = aves>0&&total>0
-    ? `${((total/aves)*100).toFixed(1)}%`
-    : aves===0?'— (sin lote)':'0.0%';
-}
-
-// ─── NAV ─────────────────────────────────────────────────────
-let _masOpen=false;
-function setupNav(){
-  document.querySelectorAll('.nav-btn[data-view]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+// ─── WIRE NAV ─────────────────────────────────────────────────
+let _masOpen = false;
+function wireNav() {
+  // Bottom nav buttons with data-view
+  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
       navigateTo(btn.dataset.view);
       document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      cerrarMasMenu();
+      cerrarMas();
     });
   });
-  document.getElementById('navMasBtn').addEventListener('click',e=>{
+
+  // "Más" toggle
+  $('navMasBtn').addEventListener('click', e => {
     e.stopPropagation();
-    _masOpen=!_masOpen;
-    document.getElementById('masMenu').classList.toggle('hidden',!_masOpen);
-    document.getElementById('navMasBtn').classList.toggle('active',_masOpen);
+    _masOpen = !_masOpen;
+    $('masMenu').classList.toggle('hidden', !_masOpen);
+    $('navMasBtn').classList.toggle('active', _masOpen);
   });
-  document.addEventListener('click',()=>{
-    if(_masOpen) cerrarMasMenu();
-  });
-  document.getElementById('masMenu').addEventListener('click',e=>e.stopPropagation());
-}
-function cerrarMasMenu(){
-  _masOpen=false;
-  document.getElementById('masMenu').classList.add('hidden');
-  document.getElementById('navMasBtn').classList.remove('active');
-}
-window.closeMenu=cerrarMasMenu;
 
-window.navigateTo=function(view){
+  // Items inside masMenu with data-nav
+  document.querySelectorAll('#masMenu .mas-btn[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigateTo(btn.dataset.nav);
+      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+      cerrarMas();
+    });
+  });
+
+  // Close mas on outside click
+  document.addEventListener('click', () => { if(_masOpen) cerrarMas(); });
+  $('masMenu').addEventListener('click', e => e.stopPropagation());
+}
+
+function cerrarMas() {
+  _masOpen = false;
+  $('masMenu').classList.add('hidden');
+  $('navMasBtn').classList.remove('active');
+}
+
+function navigateTo(view) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  const t=document.getElementById(`view-${view}`);
+  const t=$(`view-${view}`);
   if(t) t.classList.add('active');
+  // Lazy renders on navigate
   if(view==='dashboard')    renderDashboard();
-  if(view==='postura')      fillLoteSelect('posturaLote');
-  if(view==='alimentacion') fillLoteSelect('alimentacionLote');
-  if(view==='vacunacion')   fillLoteSelect('vacunacionLote');
-  if(view==='medicacion')   fillLoteSelect('medicacionLote');
-  if(view==='mortandad')    fillLoteSelect('mortandadLote');
-  if(view==='enfermedades') fillLoteSelect('enfermedadLote');
-  if(view==='notas')        fillLoteSelect('notaLote');
   if(view==='historial')    renderHistorialSelector();
-  cerrarMasMenu();
-};
-
-// ─── MODALES ─────────────────────────────────────────────────
-window.openModal=function(id){
-  document.getElementById(id).classList.remove('hidden');
-  document.body.style.overflow='hidden';
-  if(id==='modalPostura')      { fillLoteSelect('posturaLote'); calcPosturaTotal(); }
-  if(id==='modalAlimentacion') fillLoteSelect('alimentacionLote');
-  if(id==='modalVacunacion')   fillLoteSelect('vacunacionLote');
-  if(id==='modalMedicacion')   fillLoteSelect('medicacionLote');
-  if(id==='modalMortandad')    fillLoteSelect('mortandadLote');
-  if(id==='modalEnfermedad')   fillLoteSelect('enfermedadLote');
-  if(id==='modalNota')         fillLoteSelect('notaLote');
-};
-window.closeModal=function(id){
-  document.getElementById(id).classList.add('hidden');
-  document.body.style.overflow='';
-  clearModalForm(id);
-};
-document.querySelectorAll('.modal-overlay').forEach(o=>{
-  o.addEventListener('click',e=>{ if(e.target===o) closeModal(o.id); });
-});
-function clearModalForm(mid){
-  document.querySelectorAll(`#${mid} input:not([type=hidden]):not([type=file]),#${mid} select,#${mid} textarea`)
-    .forEach(el=>{ el.tagName==='SELECT'?(el.selectedIndex=0):(el.value=''); });
-  document.querySelectorAll(`#${mid} input[type=hidden]`).forEach(el=>el.value='');
-  document.querySelectorAll(`#${mid} input[type=date]`).forEach(el=>el.value=today());
-  document.querySelectorAll(`#${mid} .foto-preview`).forEach(p=>p.innerHTML='');
 }
-function fillLoteSelect(selectId){
-  const sel=document.getElementById(selectId); if(!sel) return;
-  const lotes=DB.get(KEYS.lotes);
-  sel.innerHTML=lotes.length
-    ?lotes.map(l=>`<option value="${l.id}">${l.nombre} — ${l.galpon||'Sin galpón'} (${l.cantidadActual||0} aves)</option>`).join('')
-    :'<option value="">— Sin lotes registrados —</option>';
+
+// ─── WIRE MODALS (close buttons & overlay) ───────────────────
+function wireModals() {
+  // data-close buttons
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.close));
+  });
+  // Click outside modal
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if(e.target === overlay) closeModal(overlay.id);
+    });
+  });
+}
+
+// ─── WIRE ALL BUTTONS ─────────────────────────────────────────
+function wireButtons() {
+  // Open modals
+  const opens = {
+    btnNuevoLote:      ()=>openModal('modalLote'),
+    btnNuevaMortandad: ()=>{ fillLoteSelect('mortandadLote'); openModal('modalMortandad'); },
+    btnNuevaEnfermedad:()=>{ fillLoteSelect('enfermedadLote'); openModal('modalEnfermedad'); },
+    btnNuevaVacuna:    ()=>{ fillLoteSelect('vacunacionLote'); openModal('modalVacunacion'); },
+    btnNuevaPostura:   ()=>{ fillLoteSelect('posturaLote'); openModal('modalPostura'); },
+    btnNuevaMedicacion:()=>{ fillLoteSelect('medicacionLote'); openModal('modalMedicacion'); },
+    btnNuevoAlimento:  ()=>{ fillLoteSelect('alimentacionLote'); openModal('modalAlimentacion'); },
+    btnNuevaNota:      ()=>{ fillLoteSelect('notaLote'); openModal('modalNota'); },
+    btnNuevaFormula:   ()=>openModal('modalFormula'),
+  };
+  Object.entries(opens).forEach(([id, fn]) => {
+    const el=$(id); if(el) el.addEventListener('click', fn);
+  });
+
+  // Save buttons
+  const saves = {
+    btnSaveLote:        saveLote,
+    btnSaveRuptura:     saveRuptura,
+    btnSavePostura:     savePostura,
+    btnSaveAlimentacion:saveAlimentacion,
+    btnSaveVacunacion:  saveVacunacion,
+    btnSaveMedicacion:  saveMedicacion,
+    btnSaveMortandad:   saveMortandad,
+    btnSaveEnfermedad:  saveEnfermedad,
+    btnSaveNota:        saveNota,
+    btnSaveFormula:     saveFormula,
+  };
+  Object.entries(saves).forEach(([id, fn]) => {
+    const el=$(id); if(el) el.addEventListener('click', fn);
+  });
+
+  // Export buttons
+  const expEnf = $('btnExportEnf');
+  if(expEnf) expEnf.addEventListener('click', ()=>exportarCSV(KEYS.enfermedades,'enfermedades'));
+
+  const btnExcel = $('btnExcel');
+  if(btnExcel) btnExcel.addEventListener('click', exportarExcel);
+
+  // PDF overlay buttons
+  const btnPrint = $('btnImprimirPDF');
+  const btnClose = $('btnCerrarPDF');
+  if(btnPrint) btnPrint.addEventListener('click', ()=>window.print());
+  if(btnClose) btnClose.addEventListener('click', ()=>{
+    $('pdfOverlay').classList.add('hidden');
+    document.body.style.overflow='';
+  });
+}
+
+// ─── POSTURA CALC ─────────────────────────────────────────────
+function wirePosturaCalc() {
+  ['posturaMaple20','posturaMaple30','posturaHuevosSueltos','posturaLote'].forEach(id=>{
+    const el=$(id);
+    if(el) el.addEventListener('input', calcPosturaTotal);
+    if(el) el.addEventListener('change', calcPosturaTotal);
+  });
+}
+function calcPosturaTotal() {
+  const m20  = parseInt(val('posturaMaple20'))||0;
+  const m30  = parseInt(val('posturaMaple30'))||0;
+  const suel = parseInt(val('posturaHuevosSueltos'))||0;
+  const total= m20*20 + m30*30 + suel;
+  setVal('posturaHuevosTotal', total);
+  const sub20 = $('sub20'); if(sub20) sub20.textContent=`= ${m20*20} huevos`;
+  const sub30 = $('sub30'); if(sub30) sub30.textContent=`= ${m30*30} huevos`;
+  const lote = DB.get(KEYS.lotes).find(l=>l.id===val('posturaLote'));
+  const aves = lote ? (parseInt(lote.cantidadActual)||0) : 0;
+  setVal('posturaPorc', aves>0&&total>0 ? `${((total/aves)*100).toFixed(1)}%` : aves===0?'— (sin lote)':'0.0%');
+}
+
+// ─── FOTO PREVIEWS ────────────────────────────────────────────
+function wireFotoPreviews() {
+  [['enfermedadFoto','enfermedadFotoPreview'],['notaFoto','notaFotoPreview']].forEach(([inputId, previewId])=>{
+    const el=$(inputId);
+    if(el) el.addEventListener('change', function(){
+      const p=$(previewId); if(!p) return;
+      if(this.files[0]){const r=new FileReader();r.onload=ev=>{p.innerHTML=`<img src="${ev.target.result}">`;};r.readAsDataURL(this.files[0]);}
+    });
+  });
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────
-function populateDashDate(){
-  document.getElementById('dashDate').textContent=
-    new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+function populateDashDate() {
+  const el=$('dashDate'); if(!el) return;
+  el.textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
 }
-function renderDashboard(){ renderKPIs(); renderGalponCards(); renderAlertas(); renderActividad(); }
+function renderDashboard() { renderKPIs(); renderGalponCards(); renderAlertas(); renderActividad(); }
 
-function renderKPIs(){
-  const lotes=DB.get(KEYS.lotes);
-  const mort=DB.get(KEYS.mortandad);
-  const vac=DB.get(KEYS.vacunacion);
-  const med=DB.get(KEYS.medicacion);
-  const posturas=DB.get(KEYS.postura);
+function renderKPIs() {
+  const el=$('kpiGrid'); if(!el) return;
+  const lotes=DB.get(KEYS.lotes), mort=DB.get(KEYS.mortandad);
+  const vac=DB.get(KEYS.vacunacion), med=DB.get(KEYS.medicacion), post=DB.get(KEYS.postura);
   const ponedoras=lotes.filter(l=>l.etapa==='produccion').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0);
   const recrías=lotes.filter(l=>l.etapa==='recria').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0);
   const totalBajas=mort.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
   const u7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
-  const hoyHuevos=posturas.filter(p=>p.fecha===today()).reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
-  const post7=posturas.filter(p=>u7.includes(p.fecha));
+  const hoyHuevos=post.filter(p=>p.fecha===today()).reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const post7=post.filter(p=>u7.includes(p.fecha));
   const pct7=ponedoras>0&&post7.length?((post7.reduce((s,p)=>s+(parseInt(p.huevos)||0),0)/(ponedoras*7))*100).toFixed(1):null;
-  const medAct=med.filter(m=>{const d=new Date(m.fecha);const fin=new Date(m.fecha);fin.setDate(fin.getDate()+(parseInt(m.dias)||0));return new Date()<=fin;}).length;
+  const medAct=med.filter(m=>{const fin=new Date(m.fecha);fin.setDate(fin.getDate()+(parseInt(m.dias)||0));return new Date()<=fin;}).length;
 
-  document.getElementById('kpiGrid').innerHTML=`
+  el.innerHTML=`
     <div class="kpi-card" style="--kpi-color:var(--accent);animation-delay:0s">
-      <div class="kpi-icon">🐔</div>
-      <div class="kpi-value">${(ponedoras+recrías).toLocaleString('es')}</div>
+      <div class="kpi-icon">🐔</div><div class="kpi-value">${(ponedoras+recrías).toLocaleString('es')}</div>
       <div class="kpi-label">Total Aves</div>
-      <div class="kpi-delta">🥚 ${ponedoras.toLocaleString('es')} ponedoras · 🐣 ${recrías.toLocaleString('es')} recría</div>
+      <div class="kpi-delta">🥚 ${ponedoras.toLocaleString('es')} pond. · 🐣 ${recrías.toLocaleString('es')} recría</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--gold);animation-delay:.07s">
-      <div class="kpi-icon">🥚</div>
-      <div class="kpi-value">${hoyHuevos.toLocaleString('es')}</div>
+      <div class="kpi-icon">🥚</div><div class="kpi-value">${hoyHuevos.toLocaleString('es')}</div>
       <div class="kpi-label">Huevos Hoy</div>
-      <div class="kpi-delta">${pct7?`📈 Prom. 7d: ${pct7}%`:'Sin registros hoy'}</div>
+      <div class="kpi-delta">${pct7?`📈 Prom. 7d: ${pct7}%`:'Sin postura registrada hoy'}</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--red);animation-delay:.14s">
-      <div class="kpi-icon">💀</div>
-      <div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
+      <div class="kpi-icon">💀</div><div class="kpi-value">${totalBajas.toLocaleString('es')}</div>
       <div class="kpi-label">Mortandad Total</div>
       <div class="kpi-delta">${(ponedoras+recrías)>0?((totalBajas/((ponedoras+recrías)+totalBajas))*100).toFixed(2)+'% acum.':'—'}</div>
     </div>
     <div class="kpi-card" style="--kpi-color:var(--blue);animation-delay:.21s">
-      <div class="kpi-icon">💊</div>
-      <div class="kpi-value">${medAct}</div>
+      <div class="kpi-icon">💊</div><div class="kpi-value">${medAct}</div>
       <div class="kpi-label">Tratamientos Activos</div>
       <div class="kpi-delta">${vac.filter(v=>u7.includes(v.fecha)).length} vacuna(s) esta semana</div>
     </div>`;
 }
 
-function renderGalponCards(){
-  const lotes=DB.get(KEYS.lotes);
-  const posturas=DB.get(KEYS.postura);
-  const med=DB.get(KEYS.medicacion);
-
-  // Agrupar por galpón
+function renderGalponCards() {
+  const el=$('galponCards'); if(!el) return;
+  const lotes=DB.get(KEYS.lotes), post=DB.get(KEYS.postura), med=DB.get(KEYS.medicacion);
   const galpones={};
   lotes.forEach(l=>{
     const g=l.galpon||'Sin galpón';
     if(!galpones[g]) galpones[g]={nombre:g,ponedoras:0,recrías:0,lotes:[],huevosHoy:0,pct:null,medActivos:0};
-    const aves=parseInt(l.cantidadActual)||0;
-    if(l.etapa==='produccion') galpones[g].ponedoras+=aves;
-    else galpones[g].recrías+=aves;
+    const a=parseInt(l.cantidadActual)||0;
+    l.etapa==='produccion'?galpones[g].ponedoras+=a:galpones[g].recrías+=a;
     galpones[g].lotes.push(l);
   });
-
-  // Calcular huevos hoy y % postura por galpón
-  const hoyStr=today();
+  const hoy=today();
   Object.values(galpones).forEach(g=>{
-    const loteIds=g.lotes.map(l=>l.id);
-    const hoyPost=posturas.filter(p=>p.fecha===hoyStr&&loteIds.includes(p.loteId));
-    g.huevosHoy=hoyPost.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+    const ids=g.lotes.map(l=>l.id);
+    const hp=post.filter(p=>p.fecha===hoy&&ids.includes(p.loteId));
+    g.huevosHoy=hp.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
     g.pct=g.ponedoras>0&&g.huevosHoy>0?((g.huevosHoy/g.ponedoras)*100).toFixed(1):null;
-    // Medicaciones activas en este galpón
     g.medActivos=med.filter(m=>{
-      if(!loteIds.includes(m.loteId)) return false;
+      if(!ids.includes(m.loteId)) return false;
       const fin=new Date(m.fecha); fin.setDate(fin.getDate()+(parseInt(m.dias)||0));
       return new Date()<=fin;
     }).length;
   });
-
-  const el=document.getElementById('galponCards');
-  if(!el) return;
   const list=Object.values(galpones);
-  if(!list.length){ el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Sin galpones registrados</p>'; return; }
-
+  if(!list.length){el.innerHTML='<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Sin galpones. Registrá un lote para ver estadísticas por galpón.</p>';return;}
   el.innerHTML=list.map(g=>{
     const pN=g.pct?parseFloat(g.pct):0;
-    const barCol=pN>=80?'var(--accent)':pN>=60?'var(--gold)':'var(--red)';
-    return `
-    <div class="galpon-card">
-      <div class="galpon-header">
-        <span class="galpon-nombre">🏚️ ${g.nombre}</span>
-        <span class="galpon-total">${(g.ponedoras+g.recrías).toLocaleString('es')} aves</span>
-      </div>
+    const bc=pN>=80?'var(--accent)':pN>=60?'var(--gold)':'var(--red)';
+    return `<div class="galpon-card">
+      <div class="galpon-header"><span class="galpon-nombre">🏚️ ${g.nombre}</span><span class="galpon-total">${(g.ponedoras+g.recrías).toLocaleString('es')} aves</span></div>
       <div class="galpon-stats">
         <div class="galpon-stat"><span class="galpon-stat-val" style="color:var(--accent)">${g.ponedoras.toLocaleString('es')}</span><span class="galpon-stat-lbl">🥚 Ponedoras</span></div>
         <div class="galpon-stat"><span class="galpon-stat-val" style="color:var(--gold)">${g.recrías.toLocaleString('es')}</span><span class="galpon-stat-lbl">🐣 Recría</span></div>
-        <div class="galpon-stat"><span class="galpon-stat-val" style="color:var(--gold)">${g.huevosHoy.toLocaleString('es')}</span><span class="galpon-stat-lbl">🥚 Hoy</span></div>
-        <div class="galpon-stat"><span class="galpon-stat-val" style="color:${barCol}">${g.pct?g.pct+'%':'—'}</span><span class="galpon-stat-lbl">% Postura</span></div>
+        <div class="galpon-stat"><span class="galpon-stat-val" style="color:var(--gold)">${g.huevosHoy.toLocaleString('es')}</span><span class="galpon-stat-lbl">Huevos hoy</span></div>
+        <div class="galpon-stat"><span class="galpon-stat-val" style="color:${bc}">${g.pct?g.pct+'%':'—'}</span><span class="galpon-stat-lbl">% Postura</span></div>
       </div>
-      ${g.pct?`<div class="postura-bar-wrap" style="margin-top:8px"><div class="postura-bar-fill" style="width:${Math.min(pN,100)}%;background:${barCol}"></div></div>`:''}
+      ${g.pct?`<div class="postura-bar-wrap" style="margin-top:8px"><div class="postura-bar-fill" style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}
       ${g.medActivos?`<div class="galpon-med">💊 ${g.medActivos} tratamiento(s) activo(s)</div>`:''}
     </div>`;
   }).join('');
 }
 
-function renderAlertas(){
-  const lotes=DB.get(KEYS.lotes);
-  const vacunas=DB.get(KEYS.vacunacion);
+function renderAlertas() {
+  const el=$('alertasList'); if(!el) return;
+  const lotes=DB.get(KEYS.lotes), vacunas=DB.get(KEYS.vacunacion);
   const alertas=[];
   const hoy=new Date(); hoy.setHours(0,0,0,0);
   vacunas.forEach(v=>{
-    if(!v.proximaFecha)return;
+    if(!v.proximaFecha) return;
     const prox=new Date(v.proximaFecha); prox.setHours(0,0,0,0);
     const diff=Math.ceil((prox-hoy)/864e5);
-    if(diff>=0&&diff<=7) alertas.push({icon:'💉',title:`Vacuna próxima: ${v.vacuna}`,text:` — En ${diff} día(s) · ${getLoteNombre(v.loteId)}`});
-    if(diff<0&&diff>-3)  alertas.push({icon:'🔴',title:`Vacuna vencida: ${v.vacuna}`,text:` — Hace ${Math.abs(diff)} día(s)`});
+    if(diff>=0&&diff<=7)  alertas.push({icon:'💉',title:`Vacuna próxima: ${v.vacuna}`,text:` — En ${diff} día(s) · ${getLoteNombre(v.loteId)}`});
+    if(diff<0&&diff>-3)   alertas.push({icon:'🔴',title:`Vacuna vencida: ${v.vacuna}`,text:` — Hace ${Math.abs(diff)} día(s)`});
   });
   lotes.filter(l=>l.etapa==='recria').forEach(l=>{
     const sem=semanasDesde(l.fecha,l.semanaIngreso);
-    if(sem>=17&&sem<20) alertas.push({icon:'🔔',title:`Lote próximo a postura: ${l.nombre}`,text:` — Sem. ${sem} · ¡Registrá la ruptura!`});
+    if(sem>=17&&sem<20) alertas.push({icon:'🔔',title:`Próximo a postura: ${l.nombre}`,text:` — Sem. ${sem} · ¡Registrá la ruptura!`});
   });
   DB.get(KEYS.mortandad).filter(m=>m.fecha===today()).forEach(m=>{
     if(parseInt(m.cantidad)>=5) alertas.push({icon:'🚨',title:`Alta mortandad: ${m.cantidad} aves hoy`,text:` — ${getLoteNombre(m.loteId)}`});
@@ -298,41 +360,42 @@ function renderAlertas(){
   DB.get(KEYS.enfermedades).filter(e=>e.estado==='activa').forEach(e=>{
     alertas.push({icon:'🦠',title:`Enfermedad activa: ${e.nombre}`,text:` — ${getLoteNombre(e.loteId)}`});
   });
-  document.getElementById('alertasList').innerHTML=alertas.length
+  el.innerHTML=alertas.length
     ?alertas.map(a=>`<div class="alerta-item"><span class="alerta-icon">${a.icon}</span><span class="alerta-text"><strong>${a.title}</strong>${a.text}</span></div>`).join('')
     :'<p style="color:var(--text3);font-size:.85rem;padding:8px 0">✅ Sin alertas pendientes</p>';
 }
 
-function renderActividad(){
+function renderActividad() {
+  const el=$('actividadList'); if(!el) return;
   const items=[];
-  const push=(key,icon,label)=>DB.get(key).slice(-5).reverse().forEach(r=>items.push({icon,text:label(r),ts:r.createdAt||r.fecha||''}));
-  push(KEYS.postura,'🥚',r=>`Postura: ${r.huevos} huevos — ${getLoteNombre(r.loteId)}`);
-  push(KEYS.lotes,'🐣',r=>`Ingreso: ${r.nombre} (${r.cantidadActual} aves)`);
-  push(KEYS.vacunacion,'💉',r=>`Vacuna: ${r.vacuna} — ${getLoteNombre(r.loteId)}`);
-  push(KEYS.mortandad,'💀',r=>`Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
-  push(KEYS.alimentacion,'🌾',r=>`Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
-  push(KEYS.enfermedades,'🦠',r=>`Enfermedad: ${r.nombre} — ${getLoteNombre(r.loteId)}`);
-  push(KEYS.notas,'📷',r=>`Nota de campo — ${getLoteNombre(r.loteId)}`);
+  const push=(key,icon,lbl)=>DB.get(key).slice(-5).reverse().forEach(r=>items.push({icon,text:lbl(r),ts:r.createdAt||r.fecha||''}));
+  push(KEYS.postura,      '🥚',r=>`Postura: ${r.huevos} huevos — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.lotes,        '🐣',r=>`Ingreso: ${r.nombre} (${r.cantidadActual} aves)`);
+  push(KEYS.vacunacion,   '💉',r=>`Vacuna: ${r.vacuna} — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.mortandad,    '💀',r=>`Mortandad: ${r.cantidad} ave(s) — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.alimentacion, '🌾',r=>`Alimento: ${r.kg}kg — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.enfermedades, '🦠',r=>`Enfermedad: ${r.nombre} — ${getLoteNombre(r.loteId)}`);
+  push(KEYS.notas,        '📷',r=>`Nota de campo — ${getLoteNombre(r.loteId)}`);
   items.sort((a,b)=>b.ts>a.ts?1:-1);
-  document.getElementById('actividadList').innerHTML=items.length
+  el.innerHTML=items.length
     ?items.slice(0,10).map(it=>`<div class="actividad-item"><span style="font-size:1rem">${it.icon}</span><span class="actividad-text">${it.text}</span><span class="actividad-time">${fmtDate(it.ts)}</span></div>`).join('')
     :'<p style="color:var(--text3);font-size:.85rem;padding:8px 0">Aún no hay actividad registrada.</p>';
 }
 
 // ─── LOTES ────────────────────────────────────────────────────
-window.saveLote=function(){
-  const id=document.getElementById('loteId').value;
-  const cantidad=parseInt(document.getElementById('loteCantidad').value)||0;
-  const r={id:id||uid(),fecha:document.getElementById('loteFecha').value,nombre:document.getElementById('loteNombre').value.trim(),galpon:document.getElementById('loteGalpon').value.trim(),cantidadInicial:cantidad,cantidadActual:cantidad,raza:document.getElementById('loteRaza').value.trim(),semanaIngreso:parseInt(document.getElementById('loteSemana').value)||0,procedencia:document.getElementById('loteProcedencia').value.trim(),etapa:document.getElementById('loteEtapa').value,notas:document.getElementById('loteNotas').value.trim(),createdAt:today()};
-  if(!r.nombre||!r.cantidadInicial)return showToast('⚠️ Completá nombre y cantidad');
+function saveLote() {
+  const id=val('loteId');
+  const cantidad=parseInt(val('loteCantidad'))||0;
+  const r={id:id||uid(),fecha:val('loteFecha'),nombre:val('loteNombre').trim(),galpon:val('loteGalpon').trim(),cantidadInicial:cantidad,cantidadActual:cantidad,raza:val('loteRaza').trim(),semanaIngreso:parseInt(val('loteSemana'))||0,procedencia:val('loteProcedencia').trim(),etapa:val('loteEtapa'),notas:val('loteNotas').trim(),createdAt:today()};
+  if(!r.nombre||!r.cantidadInicial) return showToast('⚠️ Completá nombre y cantidad');
   const lotes=DB.get(KEYS.lotes);
   if(id){const idx=lotes.findIndex(l=>l.id===id);if(idx>-1){r.cantidadActual=lotes[idx].cantidadActual;lotes[idx]=r;}}else lotes.push(r);
   DB.set(KEYS.lotes,lotes); closeModal('modalLote'); renderLote(); renderDashboard();
   showToast('✅ Lote guardado');
-};
-function renderLote(){
+}
+function renderLote() {
+  const el=$('loteList'); if(!el) return;
   const lotes=DB.get(KEYS.lotes);
-  const el=document.getElementById('loteList');
   if(!lotes.length){el.innerHTML=emptyState('🐣','Sin lotes registrados');return;}
   el.innerHTML=lotes.slice().reverse().map(l=>{
     const sem=semanasDesde(l.fecha,l.semanaIngreso);
@@ -345,96 +408,91 @@ function renderLote(){
         <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(l.cantidadActual)||0).toLocaleString('es')}</span></div>
         <div class="data-field"><span class="lbl">Semana actual</span><span class="val" style="color:var(--accent)">${sem} sem.</span></div>
         <div class="data-field"><span class="lbl">Raza</span><span class="val">${l.raza||'—'}</span></div>
-        <div class="data-field"><span class="lbl">Inicio</span><span class="val">${(parseInt(l.cantidadInicial)||0).toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Inicial</span><span class="val">${(parseInt(l.cantidadInicial)||0).toLocaleString('es')}</span></div>
         ${l.fechaRuptura?`<div class="data-field" style="grid-column:span 2"><span class="lbl">🥚 Ruptura postura</span><span class="val" style="color:var(--gold)">${fmtDate(l.fechaRuptura)} · Sem. ${l.semanaRuptura||'—'}</span></div>`:''}
       </div>
       ${l.notas?`<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${l.notas}</p>`:''}
       <div class="data-card-actions">
-        <button class="btn-edit" onclick="editLote('${l.id}')">✏️ Editar</button>
-        ${esR?`<button class="btn-ruptura-card" onclick="abrirRuptura('${l.id}')">🥚 Ruptura</button>`:''}
-        <button class="btn-edit" onclick="verHistorial('${l.id}')" style="color:var(--blue)">📋 Historial</button>
-        <button class="btn-delete" onclick="deleteLote('${l.id}')">🗑️</button>
+        <button class="btn-edit" data-edit-lote="${l.id}">✏️ Editar</button>
+        ${esR?`<button class="btn-ruptura-card" data-ruptura="${l.id}">🥚 Ruptura</button>`:''}
+        <button class="btn-edit" data-historial="${l.id}" style="color:var(--blue)">📋 Historial</button>
+        <button class="btn-delete" data-del-lote="${l.id}">🗑️</button>
       </div>
     </div>`;
   }).join('');
+
+  // Wire card buttons
+  el.querySelectorAll('[data-edit-lote]').forEach(b=>b.addEventListener('click',()=>editLote(b.dataset.editLote)));
+  el.querySelectorAll('[data-ruptura]').forEach(b=>b.addEventListener('click',()=>abrirRuptura(b.dataset.ruptura)));
+  el.querySelectorAll('[data-historial]').forEach(b=>b.addEventListener('click',()=>verHistorial(b.dataset.historial)));
+  el.querySelectorAll('[data-del-lote]').forEach(b=>b.addEventListener('click',()=>deleteLote(b.dataset.delLote)));
 }
-window.editLote=function(id){
+function editLote(id) {
   const l=DB.get(KEYS.lotes).find(x=>x.id===id);if(!l)return;
-  document.getElementById('loteId').value=l.id;
-  document.getElementById('loteFecha').value=l.fecha;
-  document.getElementById('loteNombre').value=l.nombre;
-  document.getElementById('loteGalpon').value=l.galpon||'';
-  document.getElementById('loteCantidad').value=l.cantidadActual;
-  document.getElementById('loteRaza').value=l.raza||'';
-  document.getElementById('loteSemana').value=l.semanaIngreso||'';
-  document.getElementById('loteProcedencia').value=l.procedencia||'';
-  document.getElementById('loteEtapa').value=l.etapa;
-  document.getElementById('loteNotas').value=l.notas||'';
+  setVal('loteId',l.id); setVal('loteFecha',l.fecha); setVal('loteNombre',l.nombre);
+  setVal('loteGalpon',l.galpon||''); setVal('loteCantidad',l.cantidadActual);
+  setVal('loteRaza',l.raza||''); setVal('loteSemana',l.semanaIngreso||'');
+  setVal('loteProcedencia',l.procedencia||''); setVal('loteEtapa',l.etapa);
+  setVal('loteNotas',l.notas||'');
   openModal('modalLote');
-};
-window.deleteLote=function(id){
+}
+function deleteLote(id) {
   if(!confirm('¿Eliminar este lote?'))return;
   DB.set(KEYS.lotes,DB.get(KEYS.lotes).filter(l=>l.id!==id));
   renderLote();renderDashboard();showToast('🗑️ Lote eliminado');
-};
-window.verHistorial=function(id){
+}
+function verHistorial(id) {
   navigateTo('historial');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  setTimeout(()=>{const sel=document.getElementById('historialLoteSelect');if(sel){sel.value=id;renderHistorial(id);}},100);
-};
+  setTimeout(()=>{ const sel=$('historialLoteSelect');if(sel){sel.value=id;renderHistorial(id);} },80);
+}
 
 // ─── RUPTURA ─────────────────────────────────────────────────
-window.abrirRuptura=function(loteId){
+function abrirRuptura(loteId) {
   const lote=DB.get(KEYS.lotes).find(l=>l.id===loteId);if(!lote)return;
-  document.getElementById('rupturaLoteId').value=loteId;
-  document.getElementById('rupturaFecha').value=today();
+  setVal('rupturaLoteId',loteId); setVal('rupturaFecha',today());
   const sem=semanasDesde(lote.fecha,lote.semanaIngreso);
-  document.getElementById('rupturaSemana').value=sem;
-  document.getElementById('rupturaInfo').innerHTML=`<div class="ruptura-card-info"><span class="ruptura-card-icon">🐣</span><div><strong>${lote.nombre}</strong><span>${lote.galpon||'Sin galpón'} · ${(parseInt(lote.cantidadActual)||0).toLocaleString('es')} aves · Semana ${sem}</span></div></div>`;
+  setVal('rupturaSemana',sem);
+  $('rupturaInfo').innerHTML=`<div class="ruptura-card-info"><span class="ruptura-card-icon">🐣</span><div><strong>${lote.nombre}</strong><span>${lote.galpon||'Sin galpón'} · ${(parseInt(lote.cantidadActual)||0).toLocaleString('es')} aves · Sem. ${sem}</span></div></div>`;
   openModal('modalRuptura');
-};
-window.saveRuptura=function(){
-  const loteId=document.getElementById('rupturaLoteId').value;
-  const fecha=document.getElementById('rupturaFecha').value;
-  const semana=document.getElementById('rupturaSemana').value;
-  const pct=document.getElementById('rupturaPctInicial').value;
-  const notas=document.getElementById('rupturaNotas').value.trim();
+}
+function saveRuptura() {
+  const loteId=val('rupturaLoteId'), fecha=val('rupturaFecha');
+  const semana=val('rupturaSemana'), pct=val('rupturaPctInicial'), notas=val('rupturaNotas').trim();
   if(!fecha)return showToast('⚠️ Ingresá la fecha');
-  const lotes=DB.get(KEYS.lotes);
-  const idx=lotes.findIndex(l=>l.id===loteId);
-  if(idx>-1){lotes[idx].etapa='produccion';lotes[idx].fechaRuptura=fecha;lotes[idx].semanaRuptura=semana;lotes[idx].pctRuptura=pct;lotes[idx].notasRuptura=notas;DB.set(KEYS.lotes,lotes);}
+  const lotes=DB.get(KEYS.lotes); const idx=lotes.findIndex(l=>l.id===loteId);
+  if(idx>-1){Object.assign(lotes[idx],{etapa:'produccion',fechaRuptura:fecha,semanaRuptura:semana,pctRuptura:pct,notasRuptura:notas});DB.set(KEYS.lotes,lotes);}
   if(pct){
     const aves=parseInt(lotes[idx]?.cantidadActual)||0;
     const huevos=aves>0?Math.round(aves*(parseFloat(pct)/100)):0;
     const lista=DB.get(KEYS.postura);
-    lista.push({id:uid(),fecha,loteId,huevos,rotos:0,notas:`Ruptura de postura (${pct}%)${notas?'. '+notas:''}`,createdAt:today()});
+    lista.push({id:uid(),fecha,loteId,huevos,maple20:0,maple30:0,sueltos:huevos,rotos:0,notas:`Ruptura de postura (${pct}%)${notas?'. '+notas:''}`,createdAt:today()});
     DB.set(KEYS.postura,lista);
   }
-  closeModal('modalRuptura');renderLote();renderPostura();renderDashboard();
+  closeModal('modalRuptura'); renderLote(); renderPostura(); renderDashboard();
   showToast('✅ Ruptura registrada — Lote en Producción');
-};
+}
 
 // ─── POSTURA ─────────────────────────────────────────────────
-window.savePostura=function(){
-  const id=document.getElementById('posturaId').value;
-  const total=parseInt(document.getElementById('posturaHuevosTotal').value)||0;
-  const m20=parseInt(document.getElementById('posturaMaple20').value)||0;
-  const m30=parseInt(document.getElementById('posturaMaple30').value)||0;
-  const suel=parseInt(document.getElementById('posturaHuevosSueltos').value)||0;
-  const r={id:id||uid(),fecha:document.getElementById('posturaFecha').value,loteId:document.getElementById('posturaLote').value,huevos:total,maple20:m20,maple30:m30,sueltos:suel,rotos:parseInt(document.getElementById('posturaRotos').value)||0,notas:document.getElementById('posturaNotas').value.trim(),createdAt:today()};
+function savePostura() {
+  const id=val('posturaId');
+  const m20=parseInt(val('posturaMaple20'))||0;
+  const m30=parseInt(val('posturaMaple30'))||0;
+  const suel=parseInt(val('posturaHuevosSueltos'))||0;
+  const total=m20*20+m30*30+suel;
+  const r={id:id||uid(),fecha:val('posturaFecha'),loteId:val('posturaLote'),huevos:total,maple20:m20,maple30:m30,sueltos:suel,rotos:parseInt(val('posturaRotos'))||0,notas:val('posturaNotas').trim(),createdAt:today()};
   if(!r.loteId)return showToast('⚠️ Seleccioná un lote');
-  if(!r.huevos&&r.huevos!==0)return showToast('⚠️ Ingresá los huevos');
   const list=DB.get(KEYS.postura);
   if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-  DB.set(KEYS.postura,list);closeModal('modalPostura');renderPostura();renderDashboard();
+  DB.set(KEYS.postura,list); closeModal('modalPostura'); renderPostura(); renderDashboard();
   showToast('✅ Postura registrada');
-};
-window.renderPostura=function(){
-  const mes=(document.getElementById('filtroPosturaMes')||{}).value||'';
+}
+function renderPostura() {
+  const el=$('posturaList'); if(!el) return;
+  const mes=val('filtroPosturaMes')||'';
   let list=DB.get(KEYS.postura);
   if(mes) list=list.filter(p=>p.fecha&&p.fecha.startsWith(mes));
   list=list.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('posturaList');
   if(!list.length){el.innerHTML=emptyState('🥚','Sin registros de postura');return;}
   el.innerHTML=list.map(p=>{
     const lote=DB.get(KEYS.lotes).find(l=>l.id===p.loteId);
@@ -442,53 +500,51 @@ window.renderPostura=function(){
     const pct=aves>0?((p.huevos/aves)*100).toFixed(1):null;
     const pN=pct?parseFloat(pct):0;
     const col=pN>=80?'var(--accent)':pN>=60?'var(--gold)':'var(--red)';
-    const mapleInfo=p.maple20||p.maple30?`<div class="data-field" style="grid-column:span 2"><span class="lbl">Desglose</span><span class="val">${p.maple20?p.maple20+' maple×20':''}${p.maple20&&p.maple30?' · ':''}${p.maple30?p.maple30+' maple×30':''}${p.sueltos?' · '+p.sueltos+' sueltos':''}</span></div>`:'';
+    const desglose=p.maple20||p.maple30?`<div class="data-field" style="grid-column:span 2"><span class="lbl">Desglose</span><span class="val">${p.maple20?p.maple20+'×20 ':''} ${p.maple30?p.maple30+'×30 ':''} ${p.sueltos?p.sueltos+' sueltos':''}</span></div>`:'';
     return `<div class="data-card">
       <div class="data-card-header"><span class="data-card-title">${getLoteNombre(p.loteId)}</span><span class="data-card-date">${fmtDate(p.fecha)}</span></div>
       <div class="data-card-body">
-        <div class="data-field"><span class="lbl">Huevos total</span><span class="val" style="color:var(--gold)">${p.huevos.toLocaleString('es')}</span></div>
+        <div class="data-field"><span class="lbl">Total huevos</span><span class="val" style="color:var(--gold)">${p.huevos.toLocaleString('es')}</span></div>
         <div class="data-field"><span class="lbl">Rotos</span><span class="val">${p.rotos}</span></div>
         <div class="data-field"><span class="lbl">% Postura</span><span class="val" style="color:${col}">${pct?pct+'%':'—'}</span></div>
         <div class="data-field"><span class="lbl">Netos</span><span class="val">${(p.huevos-p.rotos).toLocaleString('es')}</span></div>
-        ${mapleInfo}
+        ${desglose}
       </div>
       ${pct?`<div class="postura-bar-wrap"><div class="postura-bar-fill" style="width:${Math.min(pN,100)}%;background:${col}"></div></div>`:''}
       ${p.notas?`<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${p.notas}</p>`:''}
       <div class="data-card-actions">
-        <button class="btn-edit" onclick="editPostura('${p.id}')">✏️</button>
-        <button class="btn-delete" onclick="deleteRecord('${KEYS.postura}','${p.id}',renderPostura)">🗑️</button>
+        <button class="btn-edit" data-edit-postura="${p.id}">✏️</button>
+        <button class="btn-delete" data-del-postura="${p.id}">🗑️</button>
       </div>
     </div>`;
   }).join('');
-};
-window.editPostura=function(id){
+  el.querySelectorAll('[data-edit-postura]').forEach(b=>b.addEventListener('click',()=>editPostura(b.dataset.editPostura)));
+  el.querySelectorAll('[data-del-postura]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.postura,b.dataset.delPostura,renderPostura)));
+}
+function editPostura(id) {
   const p=DB.get(KEYS.postura).find(x=>x.id===id);if(!p)return;
   fillLoteSelect('posturaLote');
-  document.getElementById('posturaId').value=p.id;
-  document.getElementById('posturaFecha').value=p.fecha;
-  document.getElementById('posturaLote').value=p.loteId;
-  document.getElementById('posturaMaple20').value=p.maple20||0;
-  document.getElementById('posturaMaple30').value=p.maple30||0;
-  document.getElementById('posturaHuevosSueltos').value=p.sueltos||0;
-  document.getElementById('posturaRotos').value=p.rotos||0;
-  document.getElementById('posturaNotas').value=p.notas||'';
-  calcPosturaTotal();
-  openModal('modalPostura');
-};
+  setVal('posturaId',p.id); setVal('posturaFecha',p.fecha); setVal('posturaLote',p.loteId);
+  setVal('posturaMaple20',p.maple20||0); setVal('posturaMaple30',p.maple30||0);
+  setVal('posturaHuevosSueltos',p.sueltos||0); setVal('posturaRotos',p.rotos||0);
+  setVal('posturaNotas',p.notas||'');
+  openModal('modalPostura'); calcPosturaTotal();
+}
 
 // ─── ALIMENTACIÓN ─────────────────────────────────────────────
-window.saveAlimentacion=function(){
-  const id=document.getElementById('alimentacionId').value;
-  const r={id:id||uid(),fecha:document.getElementById('alimentacionFecha').value,loteId:document.getElementById('alimentacionLote').value,tipo:document.getElementById('alimentacionTipo').value.trim(),kg:parseFloat(document.getElementById('alimentacionKg').value)||0,grAve:parseFloat(document.getElementById('alimentacionGrAve').value)||0,proveedor:document.getElementById('alimentacionProveedor').value.trim(),costo:parseFloat(document.getElementById('alimentacionCosto').value)||0,notas:document.getElementById('alimentacionNotas').value.trim(),createdAt:today()};
+function saveAlimentacion() {
+  const id=val('alimentacionId');
+  const r={id:id||uid(),fecha:val('alimentacionFecha'),loteId:val('alimentacionLote'),tipo:val('alimentacionTipo').trim(),kg:parseFloat(val('alimentacionKg'))||0,grAve:parseFloat(val('alimentacionGrAve'))||0,proveedor:val('alimentacionProveedor').trim(),costo:parseFloat(val('alimentacionCosto'))||0,notas:val('alimentacionNotas').trim(),createdAt:today()};
   if(!r.loteId)return showToast('⚠️ Seleccioná un lote');
   const list=DB.get(KEYS.alimentacion);
   if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-  DB.set(KEYS.alimentacion,list);closeModal('modalAlimentacion');renderAlimentacion();showToast('✅ Alimentación registrada');
-};
-function renderAlimentacion(){
+  DB.set(KEYS.alimentacion,list); closeModal('modalAlimentacion'); renderAlimentacion();
+  showToast('✅ Alimento registrado');
+}
+function renderAlimentacion() {
+  const el=$('alimentacionList'); if(!el) return;
   const list=DB.get(KEYS.alimentacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('alimentacionList');
-  if(!list.length){el.innerHTML=emptyState('🌾','Sin registros');return;}
+  if(!list.length){el.innerHTML=emptyState('🌾','Sin registros de alimento');return;}
   el.innerHTML=list.map(r=>`<div class="data-card">
     <div class="data-card-header"><span class="data-card-title">${r.tipo||'Alimento'}</span><span class="data-card-date">${fmtDate(r.fecha)}</span></div>
     <div class="data-card-body">
@@ -499,30 +555,34 @@ function renderAlimentacion(){
       <div class="data-field"><span class="lbl">Proveedor</span><span class="val">${r.proveedor||'—'}</span></div>
     </div>
     <div class="data-card-actions">
-      <button class="btn-edit" onclick="editAlimentacion('${r.id}')">✏️</button>
-      <button class="btn-delete" onclick="deleteRecord('${KEYS.alimentacion}','${r.id}',renderAlimentacion)">🗑️</button>
+      <button class="btn-edit" data-edit-alim="${r.id}">✏️</button>
+      <button class="btn-delete" data-del-alim="${r.id}">🗑️</button>
     </div></div>`).join('');
+  el.querySelectorAll('[data-edit-alim]').forEach(b=>b.addEventListener('click',()=>editAlimentacion(b.dataset.editAlim)));
+  el.querySelectorAll('[data-del-alim]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.alimentacion,b.dataset.delAlim,renderAlimentacion)));
 }
-window.editAlimentacion=function(id){
+function editAlimentacion(id) {
   const r=DB.get(KEYS.alimentacion).find(x=>x.id===id);if(!r)return;
   fillLoteSelect('alimentacionLote');
-  const map={alimentacionId:r.id,alimentacionFecha:r.fecha,alimentacionLote:r.loteId,alimentacionTipo:r.tipo,alimentacionKg:r.kg,alimentacionGrAve:r.grAve,alimentacionProveedor:r.proveedor,alimentacionCosto:r.costo,alimentacionNotas:r.notas};
-  Object.entries(map).forEach(([k,v])=>{ const el=document.getElementById(k);if(el)el.value=v??''; });
+  setVal('alimentacionId',r.id);setVal('alimentacionFecha',r.fecha);setVal('alimentacionLote',r.loteId);
+  setVal('alimentacionTipo',r.tipo);setVal('alimentacionKg',r.kg);setVal('alimentacionGrAve',r.grAve);
+  setVal('alimentacionProveedor',r.proveedor);setVal('alimentacionCosto',r.costo);setVal('alimentacionNotas',r.notas);
   openModal('modalAlimentacion');
-};
+}
 
 // ─── VACUNACIÓN ───────────────────────────────────────────────
-window.saveVacunacion=function(){
-  const id=document.getElementById('vacunacionId').value;
-  const r={id:id||uid(),fecha:document.getElementById('vacunacionFecha').value,loteId:document.getElementById('vacunacionLote').value,vacuna:document.getElementById('vacunaNombre').value.trim(),via:document.getElementById('vacunaVia').value,dosis:document.getElementById('vacunaDosis').value.trim(),aplicador:document.getElementById('vacunaAplicador').value.trim(),proximaFecha:document.getElementById('vacunaProxima').value,notas:document.getElementById('vacunaNotas').value.trim(),createdAt:today()};
+function saveVacunacion() {
+  const id=val('vacunacionId');
+  const r={id:id||uid(),fecha:val('vacunacionFecha'),loteId:val('vacunacionLote'),vacuna:val('vacunaNombre').trim(),via:val('vacunaVia'),dosis:val('vacunaDosis').trim(),aplicador:val('vacunaAplicador').trim(),proximaFecha:val('vacunaProxima'),notas:val('vacunaNotas').trim(),createdAt:today()};
   if(!r.loteId||!r.vacuna)return showToast('⚠️ Completá lote y vacuna');
   const list=DB.get(KEYS.vacunacion);
   if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-  DB.set(KEYS.vacunacion,list);closeModal('modalVacunacion');renderVacunacion();renderDashboard();showToast('✅ Vacunación registrada');
-};
-function renderVacunacion(){
+  DB.set(KEYS.vacunacion,list); closeModal('modalVacunacion'); renderVacunacion(); renderDashboard();
+  showToast('✅ Vacunación registrada');
+}
+function renderVacunacion() {
+  const el=$('vacunacionList'); if(!el) return;
   const list=DB.get(KEYS.vacunacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('vacunacionList');
   if(!list.length){el.innerHTML=emptyState('💉','Sin registros');return;}
   const vias={agua:'Agua',ocular:'Ocular',nasal:'Nasal',inyectable:'Inyectable',spray:'Spray',ala:'Punción alar'};
   el.innerHTML=list.map(r=>`<div class="data-card">
@@ -535,30 +595,34 @@ function renderVacunacion(){
       <div class="data-field"><span class="lbl">Próxima</span><span class="val" style="color:var(--gold)">${r.proximaFecha?fmtDate(r.proximaFecha):'—'}</span></div>
     </div>
     <div class="data-card-actions">
-      <button class="btn-edit" onclick="editVacunacion('${r.id}')">✏️</button>
-      <button class="btn-delete" onclick="deleteRecord('${KEYS.vacunacion}','${r.id}',renderVacunacion)">🗑️</button>
+      <button class="btn-edit" data-edit-vac="${r.id}">✏️</button>
+      <button class="btn-delete" data-del-vac="${r.id}">🗑️</button>
     </div></div>`).join('');
+  el.querySelectorAll('[data-edit-vac]').forEach(b=>b.addEventListener('click',()=>editVacunacion(b.dataset.editVac)));
+  el.querySelectorAll('[data-del-vac]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.vacunacion,b.dataset.delVac,renderVacunacion)));
 }
-window.editVacunacion=function(id){
+function editVacunacion(id) {
   const r=DB.get(KEYS.vacunacion).find(x=>x.id===id);if(!r)return;
   fillLoteSelect('vacunacionLote');
-  const map={vacunacionId:r.id,vacunacionFecha:r.fecha,vacunacionLote:r.loteId,vacunaNombre:r.vacuna,vacunaVia:r.via,vacunaDosis:r.dosis,vacunaAplicador:r.aplicador,vacunaProxima:r.proximaFecha||'',vacunaNotas:r.notas};
-  Object.entries(map).forEach(([k,v])=>{const el=document.getElementById(k);if(el)el.value=v??'';});
+  setVal('vacunacionId',r.id);setVal('vacunacionFecha',r.fecha);setVal('vacunacionLote',r.loteId);
+  setVal('vacunaNombre',r.vacuna);setVal('vacunaVia',r.via);setVal('vacunaDosis',r.dosis);
+  setVal('vacunaAplicador',r.aplicador);setVal('vacunaProxima',r.proximaFecha||'');setVal('vacunaNotas',r.notas);
   openModal('modalVacunacion');
-};
+}
 
 // ─── MEDICACIÓN ───────────────────────────────────────────────
-window.saveMedicacion=function(){
-  const id=document.getElementById('medicacionId').value;
-  const r={id:id||uid(),fecha:document.getElementById('medicacionFecha').value,loteId:document.getElementById('medicacionLote').value,nombre:document.getElementById('medicamentoNombre').value.trim(),motivo:document.getElementById('medicamentoMotivo').value.trim(),dosis:document.getElementById('medicamentoDosis').value.trim(),dias:document.getElementById('medicamentoDias').value,vet:document.getElementById('medicamentoVet').value.trim(),notas:document.getElementById('medicamentoNotas').value.trim(),createdAt:today()};
+function saveMedicacion() {
+  const id=val('medicacionId');
+  const r={id:id||uid(),fecha:val('medicacionFecha'),loteId:val('medicacionLote'),nombre:val('medicamentoNombre').trim(),motivo:val('medicamentoMotivo').trim(),dosis:val('medicamentoDosis').trim(),dias:val('medicamentoDias'),vet:val('medicamentoVet').trim(),notas:val('medicamentoNotas').trim(),createdAt:today()};
   if(!r.loteId||!r.nombre)return showToast('⚠️ Completá lote y medicamento');
   const list=DB.get(KEYS.medicacion);
   if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-  DB.set(KEYS.medicacion,list);closeModal('modalMedicacion');renderMedicacion();renderDashboard();showToast('✅ Medicación registrada');
-};
-function renderMedicacion(){
+  DB.set(KEYS.medicacion,list); closeModal('modalMedicacion'); renderMedicacion(); renderDashboard();
+  showToast('✅ Medicación registrada');
+}
+function renderMedicacion() {
+  const el=$('medicacionList'); if(!el) return;
   const list=DB.get(KEYS.medicacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('medicacionList');
   if(!list.length){el.innerHTML=emptyState('💊','Sin registros');return;}
   el.innerHTML=list.map(r=>`<div class="data-card">
     <div class="data-card-header"><span class="data-card-title">${r.nombre}</span><span class="data-card-date">${fmtDate(r.fecha)}</span></div>
@@ -570,32 +634,39 @@ function renderMedicacion(){
       <div class="data-field"><span class="lbl">Veterinario</span><span class="val">${r.vet||'—'}</span></div>
     </div>
     <div class="data-card-actions">
-      <button class="btn-edit" onclick="editMedicacion('${r.id}')">✏️</button>
-      <button class="btn-delete" onclick="deleteRecord('${KEYS.medicacion}','${r.id}',renderMedicacion)">🗑️</button>
+      <button class="btn-edit" data-edit-med="${r.id}">✏️</button>
+      <button class="btn-delete" data-del-med="${r.id}">🗑️</button>
     </div></div>`).join('');
+  el.querySelectorAll('[data-edit-med]').forEach(b=>b.addEventListener('click',()=>editMedicacion(b.dataset.editMed)));
+  el.querySelectorAll('[data-del-med]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.medicacion,b.dataset.delMed,renderMedicacion)));
 }
-window.editMedicacion=function(id){
+function editMedicacion(id) {
   const r=DB.get(KEYS.medicacion).find(x=>x.id===id);if(!r)return;
   fillLoteSelect('medicacionLote');
-  const map={medicacionId:r.id,medicacionFecha:r.fecha,medicacionLote:r.loteId,medicamentoNombre:r.nombre,medicamentoMotivo:r.motivo,medicamentoDosis:r.dosis,medicamentoDias:r.dias,medicamentoVet:r.vet,medicamentoNotas:r.notas};
-  Object.entries(map).forEach(([k,v])=>{const el=document.getElementById(k);if(el)el.value=v??'';});
+  setVal('medicacionId',r.id);setVal('medicacionFecha',r.fecha);setVal('medicacionLote',r.loteId);
+  setVal('medicamentoNombre',r.nombre);setVal('medicamentoMotivo',r.motivo);setVal('medicamentoDosis',r.dosis);
+  setVal('medicamentoDias',r.dias);setVal('medicamentoVet',r.vet);setVal('medicamentoNotas',r.notas);
   openModal('modalMedicacion');
-};
+}
 
 // ─── MORTANDAD ────────────────────────────────────────────────
-window.saveMortandad=function(){
-  const id=document.getElementById('mortandadId').value;
-  const r={id:id||uid(),fecha:document.getElementById('mortandadFecha').value,loteId:document.getElementById('mortandadLote').value,cantidad:parseInt(document.getElementById('mortandadCantidad').value)||0,causa:document.getElementById('mortandadCausa').value,desc:document.getElementById('mortandadDesc').value.trim(),necropsia:document.getElementById('mortandadNecropsia').value,createdAt:today()};
+function saveMortandad() {
+  const id=val('mortandadId');
+  const r={id:id||uid(),fecha:val('mortandadFecha'),loteId:val('mortandadLote'),cantidad:parseInt(val('mortandadCantidad'))||0,causa:val('mortandadCausa'),desc:val('mortandadDesc').trim(),necropsia:val('mortandadNecropsia'),createdAt:today()};
   if(!r.loteId)return showToast('⚠️ Seleccioná un lote');
   if(!r.cantidad)return showToast('⚠️ Ingresá cantidad');
-  if(!id){const lotes=DB.get(KEYS.lotes);const idx=lotes.findIndex(l=>l.id===r.loteId);if(idx>-1){lotes[idx].cantidadActual=Math.max(0,(parseInt(lotes[idx].cantidadActual)||0)-r.cantidad);DB.set(KEYS.lotes,lotes);}}
+  if(!id){
+    const lotes=DB.get(KEYS.lotes);const idx=lotes.findIndex(l=>l.id===r.loteId);
+    if(idx>-1){lotes[idx].cantidadActual=Math.max(0,(parseInt(lotes[idx].cantidadActual)||0)-r.cantidad);DB.set(KEYS.lotes,lotes);}
+  }
   const list=DB.get(KEYS.mortandad);
   if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-  DB.set(KEYS.mortandad,list);closeModal('modalMortandad');renderMortandad();renderDashboard();showToast('✅ Mortandad registrada');
-};
-function renderMortandad(){
+  DB.set(KEYS.mortandad,list); closeModal('modalMortandad'); renderMortandad(); renderDashboard();
+  showToast('✅ Mortandad registrada');
+}
+function renderMortandad() {
+  const el=$('mortandadList'); if(!el) return;
   const list=DB.get(KEYS.mortandad).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('mortandadList');
   if(!list.length){el.innerHTML=emptyState('📋','Sin registros');return;}
   const causas={enfermedad:'Enfermedad',estres_calor:'Estrés calor',estres_frio:'Estrés frío',accidente:'Accidente',depredador:'Depredador',desconocida:'Desconocida',otra:'Otra'};
   el.innerHTML=list.map(r=>`<div class="data-card">
@@ -603,39 +674,43 @@ function renderMortandad(){
     <div class="data-card-body">
       <div class="data-field"><span class="lbl">Lote</span><span class="val">${getLoteNombre(r.loteId)}</span></div>
       <div class="data-field"><span class="lbl">Causa</span><span class="val">${causas[r.causa]||r.causa}</span></div>
-      <div class="data-field"><span class="lbl">Necropsia</span><span class="val">${r.necropsia==='si'?'✅ Sí':r.necropsia==='pendiente'?'⏳ Pendiente':'❌ No'}</span></div>
+      <div class="data-field"><span class="lbl">Necropsia</span><span class="val">${r.necropsia==='si'?'✅ Sí':r.necropsia==='pendiente'?'⏳ Pend.':'❌ No'}</span></div>
     </div>
     ${r.desc?`<p style="color:var(--text3);font-size:.82rem;margin-top:8px">${r.desc}</p>`:''}
     <div class="data-card-actions">
-      <button class="btn-edit" onclick="editMortandad('${r.id}')">✏️</button>
-      <button class="btn-delete" onclick="deleteRecord('${KEYS.mortandad}','${r.id}',renderMortandad)">🗑️</button>
+      <button class="btn-edit" data-edit-mort="${r.id}">✏️</button>
+      <button class="btn-delete" data-del-mort="${r.id}">🗑️</button>
     </div></div>`).join('');
+  el.querySelectorAll('[data-edit-mort]').forEach(b=>b.addEventListener('click',()=>editMortandad(b.dataset.editMort)));
+  el.querySelectorAll('[data-del-mort]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.mortandad,b.dataset.delMort,renderMortandad)));
 }
-window.editMortandad=function(id){
+function editMortandad(id) {
   const r=DB.get(KEYS.mortandad).find(x=>x.id===id);if(!r)return;
   fillLoteSelect('mortandadLote');
-  const map={mortandadId:r.id,mortandadFecha:r.fecha,mortandadLote:r.loteId,mortandadCantidad:r.cantidad,mortandadCausa:r.causa,mortandadDesc:r.desc,mortandadNecropsia:r.necropsia};
-  Object.entries(map).forEach(([k,v])=>{const el=document.getElementById(k);if(el)el.value=v??'';});
+  setVal('mortandadId',r.id);setVal('mortandadFecha',r.fecha);setVal('mortandadLote',r.loteId);
+  setVal('mortandadCantidad',r.cantidad);setVal('mortandadCausa',r.causa);
+  setVal('mortandadDesc',r.desc);setVal('mortandadNecropsia',r.necropsia);
   openModal('modalMortandad');
-};
+}
 
-// ─── ENFERMEDADES (con foto) ──────────────────────────────────
-window.saveEnfermedad=function(){
-  const id=document.getElementById('enfermedadId').value;
-  const archivo=document.getElementById('enfermedadFoto').files[0];
+// ─── ENFERMEDADES ─────────────────────────────────────────────
+function saveEnfermedad() {
+  const id=val('enfermedadId');
+  const archivo=$('enfermedadFoto').files[0];
   const guardar=fotoB64=>{
-    const r={id:id||uid(),fecha:document.getElementById('enfermedadFecha').value,loteId:document.getElementById('enfermedadLote').value,nombre:document.getElementById('enfermedadNombre').value.trim(),sintomas:document.getElementById('enfermedadSintomas').value.trim(),afectadas:parseInt(document.getElementById('enfermedadAfectadas').value)||0,vet:document.getElementById('enfermedadVet').value.trim(),tratamiento:document.getElementById('enfermedadTratamiento').value.trim(),estado:document.getElementById('enfermedadEstado').value,fechaCierre:document.getElementById('enfermedadCierre').value,notas:document.getElementById('enfermedadNotas').value.trim(),foto:fotoB64||(id?(DB.get(KEYS.enfermedades).find(x=>x.id===id)||{}).foto:null),createdAt:today()};
+    const r={id:id||uid(),fecha:val('enfermedadFecha'),loteId:val('enfermedadLote'),nombre:val('enfermedadNombre').trim(),sintomas:val('enfermedadSintomas').trim(),afectadas:parseInt(val('enfermedadAfectadas'))||0,vet:val('enfermedadVet').trim(),tratamiento:val('enfermedadTratamiento').trim(),estado:val('enfermedadEstado'),fechaCierre:val('enfermedadCierre'),notas:val('enfermedadNotas').trim(),foto:fotoB64||(id?(DB.get(KEYS.enfermedades).find(x=>x.id===id)||{}).foto:null),createdAt:today()};
     if(!r.loteId||!r.nombre)return showToast('⚠️ Completá lote y nombre');
     const list=DB.get(KEYS.enfermedades);
     if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-    DB.set(KEYS.enfermedades,list);closeModal('modalEnfermedad');renderEnfermedades();renderDashboard();showToast('✅ Enfermedad registrada');
+    DB.set(KEYS.enfermedades,list); closeModal('modalEnfermedad'); renderEnfermedades(); renderDashboard();
+    showToast('✅ Enfermedad registrada');
   };
   if(archivo){const rd=new FileReader();rd.onload=ev=>guardar(ev.target.result);rd.readAsDataURL(archivo);}
   else guardar(null);
-};
-function renderEnfermedades(){
+}
+function renderEnfermedades() {
+  const el=$('enfermedadList'); if(!el) return;
   const list=DB.get(KEYS.enfermedades).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('enfermedadList');
   if(!list.length){el.innerHTML=emptyState('🦠','Sin registros');return;}
   el.innerHTML=list.map(r=>{
     const badge=r.estado==='activa'?'<span class="badge badge-red">Activa</span>':r.estado==='controlada'?'<span class="badge badge-gold">Controlada</span>':'<span class="badge badge-green">Resuelta</span>';
@@ -652,395 +727,376 @@ function renderEnfermedades(){
       </div>
       ${r.sintomas?`<p style="color:var(--text3);font-size:.82rem;margin-top:8px"><strong style="color:var(--text2)">Síntomas:</strong> ${r.sintomas}</p>`:''}
       <div class="data-card-actions">
-        <button class="btn-edit" onclick="editEnfermedad('${r.id}')">✏️ Editar</button>
-        <button class="btn-delete" onclick="deleteRecord('${KEYS.enfermedades}','${r.id}',renderEnfermedades)">🗑️</button>
+        <button class="btn-edit" data-edit-enf="${r.id}">✏️ Editar</button>
+        <button class="btn-delete" data-del-enf="${r.id}">🗑️</button>
       </div></div>`;
   }).join('');
+  el.querySelectorAll('[data-edit-enf]').forEach(b=>b.addEventListener('click',()=>editEnfermedad(b.dataset.editEnf)));
+  el.querySelectorAll('[data-del-enf]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.enfermedades,b.dataset.delEnf,renderEnfermedades)));
 }
-window.editEnfermedad=function(id){
+function editEnfermedad(id) {
   const r=DB.get(KEYS.enfermedades).find(x=>x.id===id);if(!r)return;
   fillLoteSelect('enfermedadLote');
-  const map={enfermedadId:r.id,enfermedadFecha:r.fecha,enfermedadLote:r.loteId,enfermedadNombre:r.nombre,enfermedadSintomas:r.sintomas,enfermedadAfectadas:r.afectadas,enfermedadVet:r.vet,enfermedadTratamiento:r.tratamiento,enfermedadEstado:r.estado,enfermedadCierre:r.fechaCierre||'',enfermedadNotas:r.notas};
-  Object.entries(map).forEach(([k,v])=>{const el=document.getElementById(k);if(el)el.value=v??'';});
-  if(r.foto) document.getElementById('enfermedadFotoPreview').innerHTML=`<img src="${r.foto}">`;
+  setVal('enfermedadId',r.id);setVal('enfermedadFecha',r.fecha);setVal('enfermedadLote',r.loteId);
+  setVal('enfermedadNombre',r.nombre);setVal('enfermedadSintomas',r.sintomas);setVal('enfermedadAfectadas',r.afectadas);
+  setVal('enfermedadVet',r.vet);setVal('enfermedadTratamiento',r.tratamiento);setVal('enfermedadEstado',r.estado);
+  setVal('enfermedadCierre',r.fechaCierre||'');setVal('enfermedadNotas',r.notas);
+  if(r.foto) $('enfermedadFotoPreview').innerHTML=`<img src="${r.foto}">`;
   openModal('modalEnfermedad');
-};
+}
 
-// ─── NOTAS DE CAMPO ───────────────────────────────────────────
-window.saveNota=function(){
-  const id=document.getElementById('notaId').value;
-  const archivo=document.getElementById('notaFoto').files[0];
+// ─── NOTAS ────────────────────────────────────────────────────
+function saveNota() {
+  const id=val('notaId');
+  const archivo=$('notaFoto').files[0];
   const guardar=fotoB64=>{
-    const r={id:id||uid(),fecha:document.getElementById('notaFecha').value,loteId:document.getElementById('notaLote').value,texto:document.getElementById('notaTexto').value.trim(),foto:fotoB64||(id?(DB.get(KEYS.notas).find(x=>x.id===id)||{}).foto:null),createdAt:today()};
+    const r={id:id||uid(),fecha:val('notaFecha'),loteId:val('notaLote'),texto:val('notaTexto').trim(),foto:fotoB64||(id?(DB.get(KEYS.notas).find(x=>x.id===id)||{}).foto:null),createdAt:today()};
     if(!r.loteId)return showToast('⚠️ Seleccioná un lote');
     const list=DB.get(KEYS.notas);
     if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
-    DB.set(KEYS.notas,list);closeModal('modalNota');renderNotas();showToast('✅ Nota guardada');
+    DB.set(KEYS.notas,list); closeModal('modalNota'); renderNotas();
+    showToast('✅ Nota guardada');
   };
   if(archivo){const rd=new FileReader();rd.onload=ev=>guardar(ev.target.result);rd.readAsDataURL(archivo);}
   else guardar(null);
-};
-function renderNotas(){
+}
+function renderNotas() {
+  const el=$('notasList'); if(!el) return;
   const list=DB.get(KEYS.notas).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const el=document.getElementById('notasList');
   if(!list.length){el.innerHTML=emptyState('📷','Sin notas de campo');return;}
   el.innerHTML=list.map(r=>`<div class="data-card">
     <div class="data-card-header"><span class="data-card-title">📷 ${getLoteNombre(r.loteId)}</span><span class="data-card-date">${fmtDate(r.fecha)}</span></div>
     ${r.foto?`<img src="${r.foto}" style="width:100%;border-radius:8px;margin:8px 0;max-height:200px;object-fit:cover">`:''}
     ${r.texto?`<p style="color:var(--text2);font-size:.88rem;margin-top:4px">${r.texto}</p>`:''}
-    <div class="data-card-actions"><button class="btn-delete" onclick="deleteRecord('${KEYS.notas}','${r.id}',renderNotas)">🗑️</button></div>
+    <div class="data-card-actions"><button class="btn-delete" data-del-nota="${r.id}">🗑️</button></div>
   </div>`).join('');
+  el.querySelectorAll('[data-del-nota]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.notas,b.dataset.delNota,renderNotas)));
 }
 
-// ─── HISTORIAL POR LOTE ───────────────────────────────────────
-function renderHistorialSelector(){
+// ─── FÓRMULAS DE ALIMENTO ─────────────────────────────────────
+const ETAPA_NOMBRES = {
+  recria_inicial:'Recría inicial (1–8 sem.)', recria_media:'Recría media (8–14 sem.)',
+  recria_final:'Recría final (14–18 sem.)', produccion_inicio:'Producción inicio (18–30 sem.)',
+  produccion_pico:'Producción pico (30–50 sem.)', produccion_baja:'Producción baja (50+ sem.)', otra:'Otra'
+};
+function saveFormula() {
+  const id=val('formulaId');
+  const r={id:id||uid(),nombre:val('formulaNombre').trim(),etapa:val('formulaEtapa'),grAve:parseFloat(val('formulaGrAve'))||0,ingredientes:val('formulaIngredientes').trim(),proteina:val('formulaProteina'),energia:val('formulaEnergia'),calcio:val('formulaCalcio'),proveedor:val('formulaProveedor').trim(),notas:val('formulaNotas').trim(),createdAt:today()};
+  if(!r.nombre)return showToast('⚠️ Ingresá el nombre de la fórmula');
+  const list=DB.get(KEYS.formulas);
+  if(id){const i=list.findIndex(x=>x.id===id);if(i>-1)list[i]=r;}else list.push(r);
+  DB.set(KEYS.formulas,list); closeModal('modalFormula'); renderFormulas();
+  showToast('✅ Fórmula guardada');
+}
+function renderFormulas() {
+  const el=$('formulasList'); if(!el) return;
+  const list=DB.get(KEYS.formulas).slice().sort((a,b)=>a.etapa.localeCompare(b.etapa));
+  if(!list.length){
+    el.innerHTML=`<div class="formulas-empty">
+      <div class="empty-icon">🌾</div>
+      <p>Aún no hay fórmulas guardadas.</p>
+      <p style="font-size:.82rem;margin-top:6px;color:var(--text3)">Guardá acá las recetas de balanceado por etapa productiva para que los encargados tengan la guía a mano.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML=list.map(r=>`<div class="data-card formula-card">
+    <div class="data-card-header">
+      <span class="data-card-title">🌾 ${r.nombre}</span>
+      <span class="badge badge-gold">${ETAPA_NOMBRES[r.etapa]||r.etapa}</span>
+    </div>
+    <div class="formula-nutrientes">
+      ${r.grAve?`<span class="formula-nutriente"><span class="fn-val">${r.grAve}g</span><span class="fn-lbl">g/ave/día</span></span>`:''}
+      ${r.proteina?`<span class="formula-nutriente"><span class="fn-val">${r.proteina}%</span><span class="fn-lbl">Proteína</span></span>`:''}
+      ${r.energia?`<span class="formula-nutriente"><span class="fn-val">${r.energia}</span><span class="fn-lbl">kcal/kg</span></span>`:''}
+      ${r.calcio?`<span class="formula-nutriente"><span class="fn-val">${r.calcio}%</span><span class="fn-lbl">Calcio</span></span>`:''}
+    </div>
+    ${r.ingredientes?`<div class="formula-ingredientes"><pre>${r.ingredientes}</pre></div>`:''}
+    ${r.proveedor?`<p style="color:var(--text3);font-size:.8rem;margin-top:6px">🏪 ${r.proveedor}</p>`:''}
+    ${r.notas?`<p style="color:var(--text3);font-size:.82rem;margin-top:4px">${r.notas}</p>`:''}
+    <div class="data-card-actions">
+      <button class="btn-edit" data-edit-formula="${r.id}">✏️ Editar</button>
+      <button class="btn-delete" data-del-formula="${r.id}">🗑️</button>
+    </div></div>`).join('');
+  el.querySelectorAll('[data-edit-formula]').forEach(b=>b.addEventListener('click',()=>editFormula(b.dataset.editFormula)));
+  el.querySelectorAll('[data-del-formula]').forEach(b=>b.addEventListener('click',()=>deleteRecord(KEYS.formulas,b.dataset.delFormula,renderFormulas)));
+}
+function editFormula(id) {
+  const r=DB.get(KEYS.formulas).find(x=>x.id===id);if(!r)return;
+  setVal('formulaId',r.id);setVal('formulaNombre',r.nombre);setVal('formulaEtapa',r.etapa);
+  setVal('formulaGrAve',r.grAve);setVal('formulaIngredientes',r.ingredientes);
+  setVal('formulaProteina',r.proteina);setVal('formulaEnergia',r.energia);
+  setVal('formulaCalcio',r.calcio);setVal('formulaProveedor',r.proveedor);setVal('formulaNotas',r.notas);
+  openModal('modalFormula');
+}
+
+// ─── HISTORIAL ────────────────────────────────────────────────
+function renderHistorialSelector() {
   const lotes=DB.get(KEYS.lotes);
-  const sel=document.getElementById('historialLoteSelect');
-  sel.innerHTML=lotes.length?lotes.map(l=>`<option value="${l.id}">${l.nombre} — ${l.galpon||'Sin galpón'}</option>`).join(''):'<option value="">—</option>';
+  const sel=$('historialLoteSelect'); if(!sel)return;
+  sel.innerHTML=lotes.length?lotes.map(l=>`<option value="${l.id}">${l.nombre} — ${l.galpon||'Sin galpón'}</option>`).join(''):'<option>—</option>';
   if(lotes.length) renderHistorial(lotes[0].id);
 }
-window.onHistorialChange=function(){const id=document.getElementById('historialLoteSelect').value;if(id)renderHistorial(id);};
-function renderHistorial(loteId){
+window.onHistorialChange=function(){const id=val('historialLoteSelect');if(id)renderHistorial(id);};
+function renderHistorial(loteId) {
   const lote=DB.get(KEYS.lotes).find(l=>l.id===loteId);if(!lote)return;
   const sem=semanasDesde(lote.fecha,lote.semanaIngreso);
   const posturas=DB.get(KEYS.postura).filter(p=>p.loteId===loteId);
-  const totalHuevos=posturas.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
-  const totalMort=DB.get(KEYS.mortandad).filter(m=>m.loteId===loteId).reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
-
-  document.getElementById('historialResumen').innerHTML=`<div class="data-card" style="margin-bottom:14px">
+  const totalH=posturas.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const totalM=DB.get(KEYS.mortandad).filter(m=>m.loteId===loteId).reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
+  const res=$('historialResumen'); if(!res)return;
+  res.innerHTML=`<div class="data-card" style="margin-bottom:14px">
     <div class="data-card-header"><span class="data-card-title">${lote.nombre}</span><span class="badge ${lote.etapa==='produccion'?'badge-green':'badge-gold'}">${lote.etapa==='produccion'?'Producción':'Recría'}</span></div>
     <div class="data-card-body">
       <div class="data-field"><span class="lbl">Galpón</span><span class="val">${lote.galpon||'—'}</span></div>
       <div class="data-field"><span class="lbl">Ingreso</span><span class="val">${fmtDate(lote.fecha)}</span></div>
       <div class="data-field"><span class="lbl">Semana actual</span><span class="val" style="color:var(--accent)">${sem} sem.</span></div>
       <div class="data-field"><span class="lbl">Aves actuales</span><span class="val">${(parseInt(lote.cantidadActual)||0).toLocaleString('es')}</span></div>
-      <div class="data-field"><span class="lbl">Total huevos</span><span class="val" style="color:var(--gold)">${totalHuevos.toLocaleString('es')}</span></div>
-      <div class="data-field"><span class="lbl">Mortandad</span><span class="val" style="color:var(--red)">${totalMort.toLocaleString('es')} aves</span></div>
-      ${lote.fechaRuptura?`<div class="data-field" style="grid-column:span 2"><span class="lbl">🥚 Ruptura postura</span><span class="val" style="color:var(--gold)">${fmtDate(lote.fechaRuptura)} · Sem. ${lote.semanaRuptura}</span></div>`:''}
+      <div class="data-field"><span class="lbl">Total huevos</span><span class="val" style="color:var(--gold)">${totalH.toLocaleString('es')}</span></div>
+      <div class="data-field"><span class="lbl">Mortandad</span><span class="val" style="color:var(--red)">${totalM} aves</span></div>
+      ${lote.fechaRuptura?`<div class="data-field" style="grid-column:span 2"><span class="lbl">🥚 Ruptura</span><span class="val" style="color:var(--gold)">${fmtDate(lote.fechaRuptura)} · Sem. ${lote.semanaRuptura}</span></div>`:''}
     </div>
     <div class="data-card-actions">
-      <button class="btn-pdf-lote" onclick="generarPDFLote('${loteId}')">📄 PDF de este Lote</button>
+      <button class="btn-pdf-lote" data-pdf-lote="${loteId}">📄 PDF de este Lote</button>
     </div>
   </div>`;
+  res.querySelector('[data-pdf-lote]').addEventListener('click',()=>generarPDFLote(loteId));
 
   const eventos=[];
-  const add=(key,icon,label)=>DB.get(key).filter(r=>r.loteId===loteId).forEach(r=>eventos.push({icon,text:label(r),fecha:r.fecha||r.createdAt||''}));
-  add(KEYS.postura,'🥚',r=>`Postura: ${r.huevos} huevos${r.maple20||r.maple30?` (${r.maple20||0}×20 + ${r.maple30||0}×30)`:''}${r.sueltos?' + '+r.sueltos+' sueltos':''}`);
+  const add=(key,icon,lbl)=>DB.get(key).filter(r=>r.loteId===loteId).forEach(r=>eventos.push({icon,text:lbl(r),fecha:r.fecha||r.createdAt||''}));
+  add(KEYS.postura,'🥚',r=>`Postura: ${r.huevos} huevos${r.maple20||r.maple30?` (${r.maple20||0}×20 + ${r.maple30||0}×30)`:''}`);
   add(KEYS.mortandad,'💀',r=>`Mortandad: ${r.cantidad} ave(s) — ${r.causa||''}`);
-  add(KEYS.vacunacion,'💉',r=>`Vacuna: ${r.vacuna} (${r.via||''})`);
+  add(KEYS.vacunacion,'💉',r=>`Vacuna: ${r.vacuna}`);
   add(KEYS.medicacion,'💊',r=>`Medicación: ${r.nombre} — ${r.motivo||''}`);
   add(KEYS.alimentacion,'🌾',r=>`Alimento: ${r.kg}kg ${r.tipo||''}`);
   add(KEYS.enfermedades,'🦠',r=>`Enfermedad: ${r.nombre} [${r.estado}]`);
   add(KEYS.notas,'📷',r=>`Nota: ${r.texto||'(sin texto)'}`);
   eventos.sort((a,b)=>b.fecha>a.fecha?1:-1);
-  document.getElementById('historialEventos').innerHTML=eventos.length
+  const evEl=$('historialEventos'); if(!evEl)return;
+  evEl.innerHTML=eventos.length
     ?eventos.map(ev=>`<div class="actividad-item"><span style="font-size:1rem">${ev.icon}</span><span class="actividad-text">${ev.text}</span><span class="actividad-time">${fmtDate(ev.fecha)}</span></div>`).join('')
     :'<p style="color:var(--text3);font-size:.85rem;padding:16px 0">Sin eventos para este lote.</p>';
 }
 
 // ─── CSV ─────────────────────────────────────────────────────
-window.exportarCSV=function(key,nombre){
-  const list=DB.get(key);if(!list.length)return showToast('⚠️ Sin datos');
+function exportarCSV(key, nombre) {
+  const list=DB.get(key); if(!list.length) return showToast('⚠️ Sin datos');
   const lotes=DB.get(KEYS.lotes);
   const rows=list.map(r=>({...r,loteNombre:lotes.find(x=>x.id===r.loteId)?.nombre||''}));
   const cols=Object.keys(rows[0]);
   const csv=[cols.join(','),...rows.map(r=>cols.map(c=>`"${String(r[c]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hinse-${nombre}-${today()}.csv`;a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));a.download=`hinse-${nombre}-${today()}.csv`;a.click();
   showToast('📊 CSV exportado');
-};
+}
 
-// ─── EXCEL BACKUP ─────────────────────────────────────────────
-window.exportarExcel=function(){
+// ─── EXCEL ────────────────────────────────────────────────────
+function exportarExcel() {
   const lotes=DB.get(KEYS.lotes);
   const getLote=id=>lotes.find(x=>x.id===id)?.nombre||'';
-
-  // Construir un HTML de tabla con múltiples hojas simuladas (Excel abre HTML con tablas)
   const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const hdrStyle='background:#a86828;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #c8853a;';
-  const rowStyle=(i)=>i%2===0?'background:#fdf4e8;':'background:#fff8f0;';
-  const cellStyle='padding:5px 10px;border:1px solid #e8d0a8;';
-
+  const hS='background:#a86828;color:#fff;font-weight:bold;padding:6px 10px;border:1px solid #c8853a;';
+  const rS=i=>i%2===0?'background:#fdf4e8;':'background:#fff8f0;';
+  const cS='padding:5px 10px;border:1px solid #e8d0a8;';
   const makeTable=(title,headers,rows)=>{
-    const head=headers.map(h=>`<th style="${hdrStyle}">${esc(h)}</th>`).join('');
-    const body=rows.map((row,i)=>`<tr style="${rowStyle(i)}">${row.map(c=>`<td style="${cellStyle}">${esc(c)}</td>`).join('')}</tr>`).join('');
+    const head=headers.map(h=>`<th style="${hS}">${esc(h)}</th>`).join('');
+    const body=rows.map((row,i)=>`<tr style="${rS(i)}">${row.map(c=>`<td style="${cS}">${esc(c)}</td>`).join('')}</tr>`).join('');
     return `<h2 style="font-family:Georgia,serif;color:#6b3e1e;border-bottom:3px solid #c8853a;padding-bottom:6px;margin:24px 0 10px">${title}</h2>
-    <table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin-bottom:30px">${head?`<thead><tr>${head}</tr></thead>`:''}
-    <tbody>${body||`<tr><td colspan="${headers.length}" style="${cellStyle}color:#aaa;font-style:italic;">Sin datos</td></tr>`}</tbody></table>`;
+    <table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;margin-bottom:30px"><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="${headers.length}" style="${cS}color:#aaa;font-style:italic">Sin datos</td></tr>`}</tbody></table>`;
   };
-
-  // Postura
-  const postRows=DB.get(KEYS.postura).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>{
-    const lote=lotes.find(l=>l.id===p.loteId);const aves=parseInt(lote?.cantidadActual)||0;
-    const pct=aves>0?((p.huevos/aves)*100).toFixed(1)+'%':'—';
-    const m20=(p.maple20||0);const m30=(p.maple30||0);const su=(p.sueltos||0);
-    return[fmtDate(p.fecha),getLote(p.loteId),p.huevos,p.rotos,(p.huevos-p.rotos),pct,m20?m20+'×20':'',m30?m30+'×30':'',su?su+' sueltos':'',p.notas||''];
-  });
-
-  // Lotes
-  const loteRows=lotes.slice().reverse().map(l=>[l.nombre,l.galpon||'',l.etapa==='produccion'?'Producción':'Recría',fmtDate(l.fecha),l.cantidadInicial,l.cantidadActual,semanasDesde(l.fecha,l.semanaIngreso)+' sem.',l.raza||'',l.procedencia||'',l.fechaRuptura?fmtDate(l.fechaRuptura):'',l.notas||'']);
-
-  // Mortandad
   const causas={enfermedad:'Enfermedad',estres_calor:'Estrés calor',estres_frio:'Estrés frío',accidente:'Accidente',depredador:'Depredador',desconocida:'Desconocida',otra:'Otra'};
-  const mortRows=DB.get(KEYS.mortandad).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(m=>[fmtDate(m.fecha),getLote(m.loteId),m.cantidad,causas[m.causa]||m.causa,m.necropsia==='si'?'Sí':m.necropsia==='pendiente'?'Pendiente':'No',m.desc||'']);
-
-  // Vacunación
   const vias={agua:'Agua de bebida',ocular:'Ocular',nasal:'Nasal',inyectable:'Inyectable',spray:'Spray',ala:'Punción alar'};
-  const vacRows=DB.get(KEYS.vacunacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(v=>[fmtDate(v.fecha),getLote(v.loteId),v.vacuna,vias[v.via]||v.via,v.dosis||'',v.aplicador||'',v.proximaFecha?fmtDate(v.proximaFecha):'—',v.notas||'']);
-
-  // Medicación
-  const medRows=DB.get(KEYS.medicacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(m=>[fmtDate(m.fecha),getLote(m.loteId),m.nombre,m.motivo||'',m.dosis||'',m.dias||'',m.vet||'',m.notas||'']);
-
-  // Alimentación
-  const alimRows=DB.get(KEYS.alimentacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(r=>[fmtDate(r.fecha),getLote(r.loteId),r.tipo||'',r.kg,r.grAve||'',r.proveedor||'',r.costo?'$'+r.costo:'',r.notas||'']);
-
-  // Enfermedades
-  const enfRows=DB.get(KEYS.enfermedades).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(e=>[fmtDate(e.fecha),getLote(e.loteId),e.nombre,e.estado,e.afectadas||'',e.vet||'',e.tratamiento||'',e.fechaCierre?fmtDate(e.fechaCierre):'',e.sintomas||'']);
-
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>body{font-family:Arial,sans-serif;margin:30px;color:#2a1a0a;background:#fffdf8;}
   .cover{background:linear-gradient(135deg,#6b3e1e,#a86828,#d4a043);color:#fff;padding:30px;border-radius:12px;margin-bottom:30px;text-align:center;}
-  .cover h1{font-size:2.2rem;margin:0;letter-spacing:.1em;}
-  .cover p{margin:8px 0 0;opacity:.85;font-size:1rem;}
-  </style></head><body>
-  <div class="cover">
-    <h1>🐔 HINSE — GRANJA AVÍCOLA</h1>
-    <p>Backup completo de datos · Generado el ${new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
-  </div>
-  ${makeTable('🐣 LOTES',['Nombre','Galpón','Etapa','Fecha ingreso','Inicial','Actual','Semana','Raza','Procedencia','Ruptura postura','Notas'],loteRows)}
-  ${makeTable('🥚 POSTURA',['Fecha','Lote','Huevos total','Rotos','Netos','% Postura','Maple 20','Maple 30','Sueltos','Notas'],postRows)}
-  ${makeTable('💀 MORTANDAD',['Fecha','Lote','Cantidad','Causa','Necropsia','Descripción'],mortRows)}
-  ${makeTable('💉 VACUNACIÓN',['Fecha','Lote','Vacuna','Vía','Dosis','Aplicador','Próxima','Notas'],vacRows)}
-  ${makeTable('💊 MEDICACIÓN',['Fecha','Lote','Medicamento','Motivo','Dosis','Días','Veterinario','Notas'],medRows)}
-  ${makeTable('🌾 ALIMENTACIÓN',['Fecha','Lote','Tipo','Kg','g/ave/día','Proveedor','Costo','Notas'],alimRows)}
-  ${makeTable('🦠 ENFERMEDADES',['Fecha','Lote','Nombre','Estado','Aves afect.','Veterinario','Tratamiento','Cierre','Síntomas'],enfRows)}
+  .cover h1{font-size:2.2rem;margin:0;letter-spacing:.1em;}.cover p{margin:8px 0 0;opacity:.85;}</style></head><body>
+  <div class="cover"><h1>🐔 HINSE — GRANJA AVÍCOLA</h1><p>Backup completo · ${new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p></div>
+  ${makeTable('🐣 LOTES',['Nombre','Galpón','Etapa','Fecha ingreso','Inicial','Actual','Semana','Raza','Procedencia','Ruptura'],
+    lotes.slice().reverse().map(l=>[l.nombre,l.galpon||'',l.etapa==='produccion'?'Producción':'Recría',fmtDate(l.fecha),l.cantidadInicial,l.cantidadActual,semanasDesde(l.fecha,l.semanaIngreso)+' sem.',l.raza||'',l.procedencia||'',l.fechaRuptura?fmtDate(l.fechaRuptura):'']))}
+  ${makeTable('🥚 POSTURA',['Fecha','Lote','Total huevos','Rotos','Netos','Maples 20','Maples 30','Sueltos','Notas'],
+    DB.get(KEYS.postura).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p=>[fmtDate(p.fecha),getLote(p.loteId),p.huevos,p.rotos,(p.huevos-p.rotos),p.maple20||0,p.maple30||0,p.sueltos||0,p.notas||'']))}
+  ${makeTable('💀 MORTANDAD',['Fecha','Lote','Cantidad','Causa','Necropsia','Descripción'],
+    DB.get(KEYS.mortandad).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(m=>[fmtDate(m.fecha),getLote(m.loteId),m.cantidad,causas[m.causa]||m.causa,m.necropsia,m.desc||'']))}
+  ${makeTable('💉 VACUNACIÓN',['Fecha','Lote','Vacuna','Vía','Dosis','Aplicador','Próxima'],
+    DB.get(KEYS.vacunacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(v=>[fmtDate(v.fecha),getLote(v.loteId),v.vacuna,vias[v.via]||v.via,v.dosis||'',v.aplicador||'',v.proximaFecha?fmtDate(v.proximaFecha):'']))}
+  ${makeTable('💊 MEDICACIÓN',['Fecha','Lote','Medicamento','Motivo','Dosis','Días','Veterinario'],
+    DB.get(KEYS.medicacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(m=>[fmtDate(m.fecha),getLote(m.loteId),m.nombre,m.motivo||'',m.dosis||'',m.dias||'',m.vet||'']))}
+  ${makeTable('🌾 ALIMENTACIÓN',['Fecha','Lote','Tipo','Kg','g/ave/día','Proveedor','Costo'],
+    DB.get(KEYS.alimentacion).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(r=>[fmtDate(r.fecha),getLote(r.loteId),r.tipo||'',r.kg,r.grAve||'',r.proveedor||'',r.costo?'$'+r.costo:'']))}
+  ${makeTable('🦠 ENFERMEDADES',['Fecha','Lote','Nombre','Estado','Aves afect.','Veterinario','Tratamiento','Cierre'],
+    DB.get(KEYS.enfermedades).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(e=>[fmtDate(e.fecha),getLote(e.loteId),e.nombre,e.estado,e.afectadas||'',e.vet||'',e.tratamiento||'',e.fechaCierre?fmtDate(e.fechaCierre):'']))}
+  ${makeTable('🌾 FÓRMULAS DE ALIMENTO',['Nombre','Etapa','g/ave/día','Proteína%','kcal/kg','Calcio%','Proveedor','Ingredientes'],
+    DB.get(KEYS.formulas).map(f=>[f.nombre,ETAPA_NOMBRES[f.etapa]||f.etapa,f.grAve||'',f.proteina||'',f.energia||'',f.calcio||'',f.proveedor||'',f.ingredientes||'']))}
   </body></html>`;
-
-  const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hinse-backup-${today()}.xls`;a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'}));a.download=`hinse-backup-${today()}.xls`;a.click();
   showToast('📊 Excel descargado');
-};
+}
 
 // ─── DELETE ───────────────────────────────────────────────────
-window.deleteRecord=function(key,id,rerenderFn){
+function deleteRecord(key, id, rerenderFn) {
   if(!confirm('¿Eliminar este registro?'))return;
-  DB.set(key,DB.get(key).filter(x=>x.id!==id));
+  DB.set(key, DB.get(key).filter(x=>x.id!==id));
   rerenderFn();
   if([KEYS.mortandad,KEYS.lotes,KEYS.vacunacion,KEYS.medicacion,KEYS.enfermedades].includes(key)) renderDashboard();
   showToast('🗑️ Registro eliminado');
-};
+}
 
-// ─── HELPERS ─────────────────────────────────────────────────
-function getLoteNombre(id){return DB.get(KEYS.lotes).find(x=>x.id===id)?.nombre||'(lote eliminado)';}
-function emptyState(icon,msg){return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${msg}</p></div>`;}
-
-// ─── BACKUP JSON / RESTORE ────────────────────────────────────
-function setupBackup(){
-  document.getElementById('btnBackup').addEventListener('click',()=>{
+// ─── BACKUP JSON ─────────────────────────────────────────────
+function wireBackup() {
+  $('btnBackup').addEventListener('click',()=>{
     const data={};Object.values(KEYS).forEach(k=>{data[k]=DB.get(k);});
     data._version=3;data._exportDate=new Date().toISOString();
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hinse-backup-${today()}.json`;a.click();
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=`hinse-backup-${today()}.json`;a.click();
     showToast('💾 Backup JSON descargado');
   });
-  document.getElementById('btnRestore').addEventListener('click',()=>document.getElementById('fileRestore').click());
-  document.getElementById('fileRestore').addEventListener('change',e=>{
+  $('btnRestore').addEventListener('click',()=>$('fileRestore').click());
+  $('fileRestore').addEventListener('change',e=>{
     const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const data=JSON.parse(ev.target.result);
-        if(!confirm('¿Restaurar backup? Esto reemplazará los datos actuales.'))return;
-        Object.values(KEYS).forEach(k=>{if(data[k])DB.set(k,data[k]);});
-        showToast('📂 Restaurado');setTimeout(()=>location.reload(),800);
-      }catch{showToast('❌ Archivo inválido');}
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      try{const data=JSON.parse(ev.target.result);if(!confirm('¿Restaurar? Reemplazará los datos actuales.'))return;Object.values(KEYS).forEach(k=>{if(data[k])DB.set(k,data[k]);});showToast('📂 Restaurado');setTimeout(()=>location.reload(),800);}
+      catch{showToast('❌ Archivo inválido');}
     };
-    reader.readAsText(file);e.target.value='';
+    rd.readAsText(file);e.target.value='';
   });
 }
 
-// ─── PDF DASHBOARD ────────────────────────────────────────────
-function setupPDF(){ document.getElementById('btnPDF').addEventListener('click',generarPDF); }
+// ─── PDF ─────────────────────────────────────────────────────
+function wirePDF() { $('btnPDF').addEventListener('click', generarPDF); }
 
-function pdfHeader(titulo,subtitulo){
+function pdfHeader(titulo,sub){
   const fecha=new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const hora=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  return `<div class="pdf-header">
-    <div class="pdf-logo-area"><div class="pdf-logo-icon">🐔</div><div><div class="pdf-logo-name">HINSE</div><div class="pdf-logo-sub">GRANJA AVÍCOLA</div></div></div>
-    <div class="pdf-header-right"><div class="pdf-report-title">${titulo}</div><div class="pdf-report-date">${subtitulo||fecha}</div><div class="pdf-report-time">${hora} hs</div></div>
-  </div>`;
+  return `<div class="pdf-header"><div class="pdf-logo-area"><div class="pdf-logo-icon">🐔</div><div><div class="pdf-logo-name">HINSE</div><div class="pdf-logo-sub">GRANJA AVÍCOLA</div></div></div><div class="pdf-header-right"><div class="pdf-report-title">${titulo}</div><div class="pdf-report-date">${sub||fecha}</div><div class="pdf-report-time">${hora} hs</div></div></div>`;
 }
 function pdfFooter(){
-  const fecha=new Date().toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'});
-  const hora=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  return `<div class="pdf-footer"><span>Granja Hinse · Sistema de Control Avícola</span><span>Generado: ${fecha} ${hora} hs</span><span>Confidencial — Uso interno</span></div>`;
+  const f=new Date().toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'});
+  const h=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  return `<div class="pdf-footer"><span>Granja Hinse · Sistema de Control Avícola</span><span>Generado: ${f} ${h} hs</span><span>Confidencial — Uso interno</span></div>`;
+}
+function openPDF(html) {
+  $('pdfContent').innerHTML=html;
+  $('pdfOverlay').classList.remove('hidden');
+  document.body.style.overflow='hidden';
 }
 
 function generarPDF(){
-  const lotes=DB.get(KEYS.lotes);
-  const mortandades=DB.get(KEYS.mortandad);
-  const vacunas=DB.get(KEYS.vacunacion);
-  const medicacion=DB.get(KEYS.medicacion);
-  const posturas=DB.get(KEYS.postura);
-  const enfermedades=DB.get(KEYS.enfermedades);
+  const lotes=DB.get(KEYS.lotes),mort=DB.get(KEYS.mortandad),vac=DB.get(KEYS.vacunacion);
+  const med=DB.get(KEYS.medicacion),post=DB.get(KEYS.postura),enf=DB.get(KEYS.enfermedades);
   const ponedoras=lotes.filter(l=>l.etapa==='produccion').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0);
   const recrías=lotes.filter(l=>l.etapa==='recria').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0);
-  const totalBajas=mortandades.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
+  const totalBajas=mort.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
   const u7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
-  const post7=posturas.filter(p=>u7.includes(p.fecha));
-  const hoyHuevos=posturas.filter(p=>p.fecha===today()).reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const hoyH=post.filter(p=>p.fecha===today()).reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const post7=post.filter(p=>u7.includes(p.fecha));
   const pct7=ponedoras>0&&post7.length?((post7.reduce((s,p)=>s+(parseInt(p.huevos)||0),0)/(ponedoras*7))*100).toFixed(1):null;
-  const enferActivas=enfermedades.filter(e=>e.estado==='activa');
+  const enferAct=enf.filter(e=>e.estado==='activa');
   const hoy=new Date();hoy.setHours(0,0,0,0);
-  const vacProximas=vacunas.filter(v=>{if(!v.proximaFecha)return false;const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);return Math.ceil((d-hoy)/864e5)>=0&&Math.ceil((d-hoy)/864e5)<=14;}).map(v=>{const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);return{...v,dias:Math.ceil((d-hoy)/864e5)};});
-  const ultimasPosturas=lotes.filter(l=>l.etapa==='produccion').map(l=>{const ps=posturas.filter(p=>p.loteId===l.id).sort((a,b)=>b.fecha.localeCompare(a.fecha));const last=ps[0];const aves=parseInt(l.cantidadActual)||0;const pct=last&&aves>0?((parseInt(last.huevos)/aves)*100).toFixed(1):null;return{lote:l,last,pct};});
-  const medActivas=medicacion.filter(m=>{const fin=new Date(m.fecha);fin.setDate(fin.getDate()+(parseInt(m.dias)||0));return new Date()<=fin;});
+  const vacProx=vac.filter(v=>{if(!v.proximaFecha)return false;const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);const df=Math.ceil((d-hoy)/864e5);return df>=0&&df<=14;}).map(v=>{const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);return{...v,dias:Math.ceil((d-hoy)/864e5)};});
+  const medAct=med.filter(m=>{const fin=new Date(m.fecha);fin.setDate(fin.getDate()+(parseInt(m.dias)||0));return new Date()<=fin;});
+  const ultPost=lotes.filter(l=>l.etapa==='produccion').map(l=>{const ps=post.filter(p=>p.loteId===l.id).sort((a,b)=>b.fecha.localeCompare(a.fecha));const last=ps[0];const a=parseInt(l.cantidadActual)||0;const pct=last&&a>0?((parseInt(last.huevos)/a)*100).toFixed(1):null;return{lote:l,last,pct};});
 
-  document.getElementById('pdfContent').innerHTML=`<div class="pdf-page">
+  openPDF(`<div class="pdf-page">
     ${pdfHeader('INFORME DE PRODUCCIÓN')}
     <div class="pdf-kpi-strip">
       <div class="pdf-kpi" style="border-color:#c8853a"><div class="pdf-kpi-icon">🐔</div><div class="pdf-kpi-val">${(ponedoras+recrías).toLocaleString('es')}</div><div class="pdf-kpi-lbl">Total Aves</div></div>
-      <div class="pdf-kpi" style="border-color:#d4a043"><div class="pdf-kpi-icon">🥚</div><div class="pdf-kpi-val">${hoyHuevos.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Huevos Hoy</div></div>
+      <div class="pdf-kpi" style="border-color:#d4a043"><div class="pdf-kpi-icon">🥚</div><div class="pdf-kpi-val">${hoyH.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Huevos Hoy</div></div>
       <div class="pdf-kpi" style="border-color:#7a9ab5"><div class="pdf-kpi-icon">📈</div><div class="pdf-kpi-val">${pct7?pct7+'%':'—'}</div><div class="pdf-kpi-lbl">% Postura 7d</div></div>
       <div class="pdf-kpi" style="border-color:#c05050"><div class="pdf-kpi-icon">💀</div><div class="pdf-kpi-val">${totalBajas.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Mortandad</div></div>
     </div>
     <div class="pdf-cols">
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#c8853a,#a86828)"><span>🐣 LOTES ACTIVOS</span><span>${lotes.length}</span></div>
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#c8853a,#a86828)"><span>🐣 LOTES</span><span>${lotes.length}</span></div>
         ${lotes.length?lotes.map(l=>{const sem=semanasDesde(l.fecha,l.semanaIngreso);return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${l.nombre}</span><span class="pdf-badge ${l.etapa==='produccion'?'pdf-badge-green':'pdf-badge-gold'}">${l.etapa==='produccion'?'Producción':'Recría'}</span></div><div class="pdf-row-detail">${l.galpon||'Sin galpón'} · ${(parseInt(l.cantidadActual)||0).toLocaleString('es')} aves · Sem. ${sem}</div></div>`;}).join(''):'<div class="pdf-empty">Sin lotes</div>'}
       </div>
       <div class="pdf-section">
         <div class="pdf-section-header" style="background:linear-gradient(135deg,#d4a043,#a86828)"><span>🥚 POSTURA POR LOTE</span></div>
-        ${ultimasPosturas.length?ultimasPosturas.map(({lote,last,pct})=>{const pN=pct?parseFloat(pct):0;const bc=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${lote.nombre}</span><span style="font-weight:700;color:${bc}">${pct?pct+'%':'—'}</span></div>${last?`<div class="pdf-row-detail">${fmtDate(last.fecha)} · ${last.huevos} huevos</div>`:'<div class="pdf-row-detail" style="color:#c05050">Sin registros</div>'}${pct?`<div class="pdf-mini-bar"><div style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}</div>`;}).join(''):'<div class="pdf-empty">Sin lotes en producción</div>'}
+        ${ultPost.length?ultPost.map(({lote,last,pct})=>{const pN=pct?parseFloat(pct):0;const bc=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${lote.nombre}</span><span style="font-weight:700;color:${bc}">${pct?pct+'%':'—'}</span></div>${last?`<div class="pdf-row-detail">${fmtDate(last.fecha)} · ${last.huevos} huevos</div>`:'<div class="pdf-row-detail" style="color:#c05050">Sin registros</div>'}${pct?`<div class="pdf-mini-bar"><div style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}</div>`;}).join(''):'<div class="pdf-empty">Sin lotes en producción</div>'}
       </div>
     </div>
     <div class="pdf-cols">
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a9ab5,#4a6a8a)"><span>💉 VACUNAS PRÓXIMAS</span><span>${vacProximas.length}</span></div>
-        ${vacProximas.length?vacProximas.map(v=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${v.vacuna}</span><span class="pdf-badge ${v.dias<=3?'pdf-badge-red':'pdf-badge-blue'}">En ${v.dias}d</span></div><div class="pdf-row-detail">${getLoteNombre(v.loteId)}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin vacunas próximas</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a9ab5,#4a6a8a)"><span>💉 VACUNAS PRÓXIMAS</span><span>${vacProx.length}</span></div>
+        ${vacProx.length?vacProx.map(v=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${v.vacuna}</span><span class="pdf-badge ${v.dias<=3?'pdf-badge-red':'pdf-badge-blue'}">En ${v.dias}d</span></div><div class="pdf-row-detail">${getLoteNombre(v.loteId)}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin vacunas próximas</div>'}
       </div>
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#6a8a6a,#4a6a4a)"><span>💊 TRATAMIENTOS ACTIVOS</span><span>${medActivas.length}</span></div>
-        ${medActivas.length?medActivas.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${m.nombre}</span><span class="pdf-badge pdf-badge-blue">${m.dias||'?'}d</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)}${m.motivo?' · '+m.motivo:''}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin tratamientos activos</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#6a8a6a,#4a6a4a)"><span>💊 TRATAMIENTOS ACTIVOS</span><span>${medAct.length}</span></div>
+        ${medAct.length?medAct.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${m.nombre}</span><span class="pdf-badge pdf-badge-blue">${m.dias||'?'}d</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)}${m.motivo?' · '+m.motivo:''}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin tratamientos</div>'}
       </div>
     </div>
     <div class="pdf-cols">
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#8a5a3a,#6b3e1e)"><span>🦠 ENFERMEDADES ACTIVAS</span><span>${enferActivas.length}</span></div>
-        ${enferActivas.length?enferActivas.map(e=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${e.nombre}</span><span class="pdf-badge pdf-badge-red">Activa</span></div><div class="pdf-row-detail">${getLoteNombre(e.loteId)}${e.vet?' · Vet: '+e.vet:''}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin enfermedades activas</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#8a5a3a,#6b3e1e)"><span>🦠 ENFERMEDADES ACTIVAS</span><span>${enferAct.length}</span></div>
+        ${enferAct.length?enferAct.map(e=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${e.nombre}</span><span class="pdf-badge pdf-badge-red">Activa</span></div><div class="pdf-row-detail">${getLoteNombre(e.loteId)}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin enfermedades activas</div>'}
       </div>
       <div class="pdf-section">
         <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a3a3a,#5a2a2a)"><span>💀 MORTANDAD RECIENTE</span></div>
-        ${mortandades.length?mortandades.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,4).map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:#c05050">🪦 ${m.cantidad} ave(s)</span><span style="color:#8a6848;font-size:.82rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)} · ${m.causa||'—'}</div></div>`).join(''):'<div class="pdf-empty">Sin registros</div>'}
+        ${mort.length?mort.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,4).map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:#c05050">🪦 ${m.cantidad} ave(s)</span><span style="color:#8a6848;font-size:.82rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)} · ${m.causa||'—'}</div></div>`).join(''):'<div class="pdf-empty">Sin registros</div>'}
       </div>
     </div>
     ${pdfFooter()}
-  </div>`;
-  document.getElementById('pdfOverlay').classList.remove('hidden');
-  document.body.style.overflow='hidden';
+  </div>`);
 }
 
-// ─── PDF HISTORIAL DE LOTE ────────────────────────────────────
-window.generarPDFLote=function(loteId){
+function generarPDFLote(loteId){
   const lote=DB.get(KEYS.lotes).find(l=>l.id===loteId);if(!lote)return;
   const sem=semanasDesde(lote.fecha,lote.semanaIngreso);
   const posturas=DB.get(KEYS.postura).filter(p=>p.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const mortandades=DB.get(KEYS.mortandad).filter(m=>m.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const vacunas=DB.get(KEYS.vacunacion).filter(v=>v.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const medicacion=DB.get(KEYS.medicacion).filter(m=>m.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const alimentos=DB.get(KEYS.alimentacion).filter(a=>a.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const enfermedades=DB.get(KEYS.enfermedades).filter(e=>e.loteId===loteId);
-  const notas=DB.get(KEYS.notas).filter(n=>n.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const totalHuevos=posturas.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
-  const totalMort=mortandades.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
-  const totalKgAlim=alimentos.reduce((s,a)=>s+(parseFloat(a.kg)||0),0);
+  const mort=DB.get(KEYS.mortandad).filter(m=>m.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const vac=DB.get(KEYS.vacunacion).filter(v=>v.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const med=DB.get(KEYS.medicacion).filter(m=>m.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const alim=DB.get(KEYS.alimentacion).filter(a=>a.loteId===loteId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const enf=DB.get(KEYS.enfermedades).filter(e=>e.loteId===loteId);
+  const notas=DB.get(KEYS.notas).filter(n=>n.loteId===loteId).filter(n=>n.foto);
+  const totalH=posturas.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const totalM=mort.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
+  const totalKg=alim.reduce((s,a)=>s+(parseFloat(a.kg)||0),0);
+  const totalCosto=alim.reduce((s,a)=>s+(parseFloat(a.costo)||0),0);
   const aves=parseInt(lote.cantidadActual)||0;
   const pctProm=posturas.length&&aves>0?((posturas.reduce((s,p)=>s+(parseInt(p.huevos)||0),0)/(aves*posturas.length))*100).toFixed(1):null;
-  const totalCostoAlim=alimentos.reduce((s,a)=>s+(parseFloat(a.costo)||0),0);
   const causas={enfermedad:'Enfermedad',estres_calor:'Estrés calor',estres_frio:'Estrés frío',accidente:'Accidente',depredador:'Depredador',desconocida:'Desconocida',otra:'Otra'};
 
-  const notasFoto=notas.filter(n=>n.foto);
-
-  document.getElementById('pdfContent').innerHTML=`<div class="pdf-page">
-    ${pdfHeader('HISTORIAL DE LOTE',lote.nombre+' · '+lote.galpon)}
-
-    <!-- RESUMEN DEL LOTE -->
+  openPDF(`<div class="pdf-page">
+    ${pdfHeader('HISTORIAL DE LOTE', lote.nombre+' · '+(lote.galpon||'Sin galpón'))}
     <div class="pdf-lote-banner">
       <div class="pdf-lote-banner-left">
         <div class="pdf-lote-nombre">${lote.nombre}</div>
         <div class="pdf-lote-detalle">${lote.galpon||'Sin galpón'} · Semana ${sem} · ${lote.raza||'Raza no especificada'}</div>
-        ${lote.fechaRuptura?`<div class="pdf-lote-ruptura">🥚 Ruptura de postura: ${fmtDate(lote.fechaRuptura)} — Sem. ${lote.semanaRuptura}</div>`:''}
+        ${lote.fechaRuptura?`<div class="pdf-lote-ruptura">🥚 Ruptura: ${fmtDate(lote.fechaRuptura)} — Sem. ${lote.semanaRuptura}</div>`:''}
       </div>
       <div class="pdf-lote-badge-etapa ${lote.etapa==='produccion'?'prod':'recria'}">${lote.etapa==='produccion'?'PRODUCCIÓN':'RECRÍA'}</div>
     </div>
-
-    <!-- KPIs DEL LOTE -->
     <div class="pdf-kpi-strip" style="grid-template-columns:repeat(5,1fr)">
       <div class="pdf-kpi" style="border-color:#c8853a"><div class="pdf-kpi-icon">🐔</div><div class="pdf-kpi-val">${aves.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Aves actuales</div></div>
-      <div class="pdf-kpi" style="border-color:#d4a043"><div class="pdf-kpi-icon">🥚</div><div class="pdf-kpi-val">${totalHuevos.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Total huevos</div></div>
+      <div class="pdf-kpi" style="border-color:#d4a043"><div class="pdf-kpi-icon">🥚</div><div class="pdf-kpi-val">${totalH.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Total huevos</div></div>
       <div class="pdf-kpi" style="border-color:#7a9ab5"><div class="pdf-kpi-icon">📈</div><div class="pdf-kpi-val">${pctProm?pctProm+'%':'—'}</div><div class="pdf-kpi-lbl">% Postura prom.</div></div>
-      <div class="pdf-kpi" style="border-color:#c05050"><div class="pdf-kpi-icon">💀</div><div class="pdf-kpi-val">${totalMort.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Mortandad total</div></div>
-      <div class="pdf-kpi" style="border-color:#8a5a3a"><div class="pdf-kpi-icon">🌾</div><div class="pdf-kpi-val">${totalKgAlim.toLocaleString('es')} kg</div><div class="pdf-kpi-lbl">Alimento total</div></div>
+      <div class="pdf-kpi" style="border-color:#c05050"><div class="pdf-kpi-icon">💀</div><div class="pdf-kpi-val">${totalM.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Mortandad</div></div>
+      <div class="pdf-kpi" style="border-color:#8a5a3a"><div class="pdf-kpi-icon">🌾</div><div class="pdf-kpi-val">${totalKg.toLocaleString('es')} kg</div><div class="pdf-kpi-lbl">Alimento total</div></div>
     </div>
-
     <div class="pdf-cols">
-      <!-- POSTURA -->
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#d4a043,#a86828)"><span>🥚 REGISTROS DE POSTURA</span><span>${posturas.length}</span></div>
-        ${posturas.length?posturas.slice(0,15).map(p=>{const pN=aves>0?((parseInt(p.huevos)/aves)*100):0;const bc=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:${bc}">${p.huevos} huevos (${pN.toFixed(1)}%)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(p.fecha)}</span></div>${p.maple20||p.maple30?`<div class="pdf-row-detail">${p.maple20||0}×20 + ${p.maple30||0}×30${p.sueltos?' + '+p.sueltos+' sueltos':''}</div>`:''}${pN>0?`<div class="pdf-mini-bar"><div style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}</div>`;}).join('')+''+( posturas.length>15?`<div class="pdf-empty">... y ${posturas.length-15} registros más</div>`:''):'<div class="pdf-empty">Sin registros de postura</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#d4a043,#a86828)"><span>🥚 POSTURA</span><span>${posturas.length} registros</span></div>
+        ${posturas.length?posturas.slice(0,15).map(p=>{const pN=aves>0?((parseInt(p.huevos)/aves)*100):0;const bc=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:${bc}">${p.huevos} huevos (${pN.toFixed(1)}%)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(p.fecha)}</span></div>${p.maple20||p.maple30?`<div class="pdf-row-detail">${p.maple20||0}×20 + ${p.maple30||0}×30${p.sueltos?' + '+p.sueltos+' sueltos':''}</div>`:''}${pN>0?`<div class="pdf-mini-bar"><div style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}</div>`;}).join('')+(posturas.length>15?`<div class="pdf-empty">... y ${posturas.length-15} más</div>`:''):'<div class="pdf-empty">Sin registros</div>'}
       </div>
-      <!-- MORTANDAD -->
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a3a3a,#5a2a2a)"><span>💀 MORTANDAD</span><span>${totalMort} aves</span></div>
-        ${mortandades.length?mortandades.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:#c05050">🪦 ${m.cantidad} ave(s)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${causas[m.causa]||m.causa}${m.necropsia==='si'?' · ✅ Necropsia':''}</div></div>`).join(''):'<div class="pdf-empty">Sin registros de mortandad</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a3a3a,#5a2a2a)"><span>💀 MORTANDAD</span><span>${totalM} aves</span></div>
+        ${mort.length?mort.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:#c05050">🪦 ${m.cantidad} ave(s)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${causas[m.causa]||m.causa}${m.necropsia==='si'?' · ✅ Necropsia':''}</div></div>`).join(''):'<div class="pdf-empty">Sin registros</div>'}
       </div>
     </div>
-
     <div class="pdf-cols">
-      <!-- VACUNACIÓN -->
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a9ab5,#4a6a8a)"><span>💉 VACUNACIÓN</span><span>${vacunas.length}</span></div>
-        ${vacunas.length?vacunas.map(v=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${v.vacuna}</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(v.fecha)}</span></div><div class="pdf-row-detail">${v.via||''} · ${v.dosis||'—'}${v.proximaFecha?' · Próx: '+fmtDate(v.proximaFecha):''}</div></div>`).join(''):'<div class="pdf-empty">Sin vacunas registradas</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a9ab5,#4a6a8a)"><span>💉 VACUNACIÓN</span><span>${vac.length}</span></div>
+        ${vac.length?vac.map(v=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${v.vacuna}</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(v.fecha)}</span></div><div class="pdf-row-detail">${v.via||''} · ${v.dosis||'—'}</div></div>`).join(''):'<div class="pdf-empty">Sin vacunas</div>'}
       </div>
-      <!-- MEDICACIÓN -->
       <div class="pdf-section">
-        <div class="pdf-section-header" style="background:linear-gradient(135deg,#6a8a6a,#4a6a4a)"><span>💊 MEDICACIÓN</span><span>${medicacion.length}</span></div>
-        ${medicacion.length?medicacion.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${m.nombre}</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${m.motivo||'—'} · ${m.dias||'?'} días${m.vet?' · '+m.vet:''}</div></div>`).join(''):'<div class="pdf-empty">Sin medicaciones registradas</div>'}
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#6a8a6a,#4a6a4a)"><span>💊 MEDICACIÓN</span><span>${med.length}</span></div>
+        ${med.length?med.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${m.nombre}</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${m.motivo||'—'} · ${m.dias||'?'} días</div></div>`).join(''):'<div class="pdf-empty">Sin medicaciones</div>'}
       </div>
     </div>
-
-    <!-- ENFERMEDADES -->
-    ${enfermedades.length?`<div class="pdf-section pdf-section-full">
-      <div class="pdf-section-header" style="background:linear-gradient(135deg,#8a5a3a,#6b3e1e)"><span>🦠 ENFERMEDADES</span><span>${enfermedades.length}</span></div>
-      ${enfermedades.map(e=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">🦠 ${e.nombre}</span><span class="pdf-badge ${e.estado==='activa'?'pdf-badge-red':e.estado==='controlada'?'pdf-badge-gold':'pdf-badge-green'}">${e.estado}</span></div><div class="pdf-row-detail">${e.vet||''} · Aves: ${e.afectadas||'—'} · ${e.fechaCierre?'Cierre: '+fmtDate(e.fechaCierre):'Sin fecha cierre'}</div>${e.tratamiento?`<div class="pdf-row-detail" style="color:#6b3e1e">Trat: ${e.tratamiento}</div>`:''}</div>`).join('')}
-    </div>`:''}
-
-    <!-- ALIMENTACIÓN -->
-    ${alimentos.length?`<div class="pdf-section pdf-section-full">
-      <div class="pdf-section-header" style="background:linear-gradient(135deg,#6b5a2a,#4a3a18)"><span>🌾 ALIMENTACIÓN · Total: ${totalKgAlim.toLocaleString('es')} kg</span>${totalCostoAlim>0?`<span>$${totalCostoAlim.toLocaleString('es')}</span>`:'<span></span>'}</div>
-      ${alimentos.slice(0,10).map(a=>`<div class="pdf-row" style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:8px;align-items:center"><span style="color:#8a6848;font-size:.78rem">${fmtDate(a.fecha)}</span><span style="font-weight:600">${a.tipo||'Alimento'}</span><span>${a.kg} kg</span><span style="color:#a86828">${a.costo?'$'+a.costo:''}</span></div>`).join('')}
-    </div>`:''}
-
-    <!-- FOTOS DE NOTAS -->
-    ${notasFoto.length?`<div class="pdf-section pdf-section-full">
-      <div class="pdf-section-header" style="background:linear-gradient(135deg,#5a4a3a,#3a2a1a)"><span>📷 NOTAS DE CAMPO CON FOTO</span><span>${notasFoto.length}</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:14px">
-        ${notasFoto.map(n=>`<div><img src="${n.foto}" style="width:100%;border-radius:8px;max-height:140px;object-fit:cover"><p style="font-size:.75rem;color:#8a6848;margin-top:4px">${fmtDate(n.fecha)}${n.texto?' — '+n.texto.slice(0,50):''}</p></div>`).join('')}
-      </div>
-    </div>`:''}
-
+    ${enf.length?`<div class="pdf-section pdf-section-full"><div class="pdf-section-header" style="background:linear-gradient(135deg,#8a5a3a,#6b3e1e)"><span>🦠 ENFERMEDADES</span><span>${enf.length}</span></div>${enf.map(e=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">🦠 ${e.nombre}</span><span class="pdf-badge ${e.estado==='activa'?'pdf-badge-red':e.estado==='controlada'?'pdf-badge-gold':'pdf-badge-green'}">${e.estado}</span></div><div class="pdf-row-detail">${e.vet||''} · Aves: ${e.afectadas||'—'}${e.tratamiento?' · Trat: '+e.tratamiento:''}</div></div>`).join('')}</div>`:''}
+    ${alim.length?`<div class="pdf-section pdf-section-full"><div class="pdf-section-header" style="background:linear-gradient(135deg,#6b5a2a,#4a3a18)"><span>🌾 ALIMENTACIÓN · Total: ${totalKg.toLocaleString('es')} kg</span>${totalCosto>0?`<span>$${totalCosto.toLocaleString('es')}</span>`:'<span></span>'}</div>${alim.slice(0,10).map(a=>`<div class="pdf-row" style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:8px;align-items:center"><span style="color:#8a6848;font-size:.78rem">${fmtDate(a.fecha)}</span><span style="font-weight:600">${a.tipo||'Alimento'}</span><span>${a.kg} kg</span><span style="color:#a86828">${a.costo?'$'+a.costo:''}</span></div>`).join('')}</div>`:''}
+    ${notas.length?`<div class="pdf-section pdf-section-full"><div class="pdf-section-header" style="background:linear-gradient(135deg,#5a4a3a,#3a2a1a)"><span>📷 FOTOS DE CAMPO</span><span>${notas.length}</span></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:14px">${notas.map(n=>`<div><img src="${n.foto}" style="width:100%;border-radius:8px;max-height:140px;object-fit:cover"><p style="font-size:.75rem;color:#8a6848;margin-top:4px">${fmtDate(n.fecha)}${n.texto?' — '+n.texto.slice(0,50):''}</p></div>`).join('')}</div></div>`:''}
     ${pdfFooter()}
-  </div>`;
-
-  document.getElementById('pdfOverlay').classList.remove('hidden');
-  document.body.style.overflow='hidden';
-};
-
-window.imprimirPDF=function(){ window.print(); };
-window.cerrarPDF=function(){
-  document.getElementById('pdfOverlay').classList.add('hidden');
-  document.body.style.overflow='';
-};
+  </div>`);
+}
 
 // ─── SW ───────────────────────────────────────────────────────
 if('serviceWorker' in navigator){
