@@ -153,6 +153,7 @@ function navigateTo(view) {
   // Lazy renders on navigate
   if(view==='dashboard')    renderDashboard();
   if(view==='historial')    renderHistorialSelector();
+  if(view==='galpones')     renderGalpones();
 }
 
 // ─── WIRE MODALS (close buttons & overlay) ───────────────────
@@ -258,7 +259,7 @@ function populateDashDate() {
   const el=$('dashDate'); if(!el) return;
   el.textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
 }
-function renderDashboard() { renderKPIs(); renderGalponCards(); renderAlertas(); renderActividad(); }
+function renderDashboard() { renderKPIs(); renderAlertas(); renderActividad(); }
 
 function renderKPIs() {
   const el=$('kpiGrid'); if(!el) return;
@@ -337,6 +338,188 @@ function renderGalponCards() {
     </div>`;
   }).join('');
 }
+
+// ─── GALPONES VIEW ────────────────────────────────────────────
+function buildGalponesData() {
+  const lotes=DB.get(KEYS.lotes), post=DB.get(KEYS.postura), med=DB.get(KEYS.medicacion);
+  const galpones={};
+  lotes.forEach(l=>{
+    const g=l.galpon||'Sin galpón';
+    if(!galpones[g]) galpones[g]={nombre:g,ponedoras:0,recrías:0,lotes:[],huevosHoy:0,pct:null,medActivos:0,posturas7:[]};
+    const a=parseInt(l.cantidadActual)||0;
+    l.etapa==='produccion'?galpones[g].ponedoras+=a:galpones[g].recrías+=a;
+    galpones[g].lotes.push(l);
+  });
+  const hoy=today();
+  const u7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
+  Object.values(galpones).forEach(g=>{
+    const ids=g.lotes.map(l=>l.id);
+    const hp=post.filter(p=>p.fecha===hoy&&ids.includes(p.loteId));
+    g.huevosHoy=hp.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+    g.pct=g.ponedoras>0&&g.huevosHoy>0?((g.huevosHoy/g.ponedoras)*100).toFixed(1):null;
+    g.posturas7=post.filter(p=>u7.includes(p.fecha)&&ids.includes(p.loteId));
+    g.pct7=g.ponedoras>0&&g.posturas7.length?((g.posturas7.reduce((s,p)=>s+(parseInt(p.huevos)||0),0)/(g.ponedoras*7))*100).toFixed(1):null;
+    g.medActivos=med.filter(m=>{
+      if(!ids.includes(m.loteId)) return false;
+      const fin=new Date(m.fecha); fin.setDate(fin.getDate()+(parseInt(m.dias)||0));
+      return new Date()<=fin;
+    }).length;
+  });
+  return Object.values(galpones);
+}
+
+function galponCardHTML(g, showPDF=false) {
+  const pN=g.pct?parseFloat(g.pct):0;
+  const bc=pN>=80?'var(--accent)':pN>=60?'var(--gold)':'var(--red)';
+  const bcHex=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';
+  return `<div class="galpon-card-full">
+    <div class="galpon-card-header">
+      <div class="galpon-card-title">
+        <span class="galpon-icon-big">🏚️</span>
+        <div>
+          <div class="galpon-nombre-big">${g.nombre}</div>
+          <div class="galpon-sub">${g.lotes.length} lote(s) · ${(g.ponedoras+g.recrías).toLocaleString('es')} aves totales</div>
+        </div>
+      </div>
+      ${showPDF?`<button class="btn-pdf-galpon" data-pdf-galpon="${g.nombre}">📄 PDF</button>`:''}
+    </div>
+    <div class="galpon-stats-full">
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:var(--accent)">${g.ponedoras.toLocaleString('es')}</span><span class="gsb-lbl">🥚 Ponedoras</span></div>
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:var(--gold)">${g.recrías.toLocaleString('es')}</span><span class="gsb-lbl">🐣 Recría</span></div>
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:var(--gold)">${g.huevosHoy.toLocaleString('es')}</span><span class="gsb-lbl">Huevos hoy</span></div>
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:${bc}">${g.pct?g.pct+'%':'—'}</span><span class="gsb-lbl">% Postura hoy</span></div>
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:${bc}">${g.pct7?g.pct7+'%':'—'}</span><span class="gsb-lbl">% Postura 7d</span></div>
+      <div class="galpon-stat-big"><span class="gsb-val" style="color:var(--blue)">${g.medActivos}</span><span class="gsb-lbl">💊 Trat. activos</span></div>
+    </div>
+    ${g.pct?`<div class="postura-bar-wrap" style="margin-top:10px"><div class="postura-bar-fill" style="width:${Math.min(pN,100)}%;background:${bc}"></div></div>`:''}
+    <div class="galpon-lotes-list">
+      ${g.lotes.map(l=>`<div class="galpon-lote-row">
+        <span class="badge ${l.etapa==='produccion'?'badge-green':'badge-gold'}">${l.etapa==='produccion'?'Prod.':'Recría'}</span>
+        <span style="font-weight:600;font-size:.88rem">${l.nombre}</span>
+        <span style="color:var(--text3);font-size:.82rem">${(parseInt(l.cantidadActual)||0).toLocaleString('es')} aves · Sem. ${semanasDesde(l.fecha,l.semanaIngreso)}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderGalpones() {
+  const el=$('galponCards'); if(!el) return;
+  const list=buildGalponesData();
+  if(!list.length){el.innerHTML=emptyState('🏚️','Sin galpones. Registrá lotes con galpón asignado.');return;}
+  el.innerHTML=list.map(g=>galponCardHTML(g,true)).join('');
+  el.querySelectorAll('[data-pdf-galpon]').forEach(btn=>{
+    btn.addEventListener('click',()=>generarPDFGalpon(btn.dataset.pdfGalpon));
+  });
+}
+
+function generarPDFGalpon(nombreGalpon) {
+  const list=buildGalponesData();
+  const g=list.find(x=>x.nombre===nombreGalpon);
+  if(!g) return;
+  const pN=g.pct?parseFloat(g.pct):0;
+  const bc=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';
+  const ids=g.lotes.map(l=>l.id);
+  const post=DB.get(KEYS.postura).filter(p=>ids.includes(p.loteId)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const mort=DB.get(KEYS.mortandad).filter(m=>ids.includes(m.loteId));
+  const vac=DB.get(KEYS.vacunacion).filter(v=>ids.includes(v.loteId));
+  const med=DB.get(KEYS.medicacion).filter(m=>ids.includes(m.loteId));
+  const enf=DB.get(KEYS.enfermedades).filter(e=>ids.includes(e.loteId)&&e.estado==='activa');
+  const totalH=post.reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  const totalM=mort.reduce((s,m)=>s+(parseInt(m.cantidad)||0),0);
+  const hoy=new Date();hoy.setHours(0,0,0,0);
+  const vacProx=vac.filter(v=>{if(!v.proximaFecha)return false;const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);const df=Math.ceil((d-hoy)/864e5);return df>=0&&df<=14;}).map(v=>{const d=new Date(v.proximaFecha);d.setHours(0,0,0,0);return{...v,dias:Math.ceil((d-hoy)/864e5)};});
+  const medAct=med.filter(m=>{const fin=new Date(m.fecha);fin.setDate(fin.getDate()+(parseInt(m.dias)||0));return new Date()<=fin;});
+  const causas={enfermedad:'Enfermedad',estres_calor:'Estrés calor',estres_frio:'Estrés frío',accidente:'Accidente',depredador:'Depredador',desconocida:'Desconocida',otra:'Otra'};
+
+  openPDF(`<div class="pdf-page">
+    ${pdfHeader('ESTADO DE GALPÓN', g.nombre)}
+
+    <!-- BANNER GALPÓN -->
+    <div class="pdf-lote-banner" style="background:linear-gradient(135deg,#fff8f0,#fdf0d8);border-color:#c8853a">
+      <div class="pdf-lote-banner-left">
+        <div class="pdf-lote-nombre">🏚️ ${g.nombre}</div>
+        <div class="pdf-lote-detalle">${g.lotes.length} lote(s) · ${(g.ponedoras+g.recrías).toLocaleString('es')} aves totales</div>
+        <div class="pdf-lote-detalle" style="margin-top:3px">🥚 ${g.ponedoras.toLocaleString('es')} ponedoras · 🐣 ${g.recrías.toLocaleString('es')} en recría</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:2rem;font-weight:700;color:${bc}">${g.pct?g.pct+'%':'—'}</div>
+        <div style="font-size:.75rem;color:#8a6848;text-transform:uppercase;letter-spacing:.06em">% Postura hoy</div>
+        ${g.pct7?`<div style="font-size:.85rem;color:#a86828;margin-top:3px">Prom 7d: ${g.pct7}%</div>`:''}
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="pdf-kpi-strip" style="grid-template-columns:repeat(5,1fr)">
+      <div class="pdf-kpi" style="border-color:#c8853a"><div class="pdf-kpi-icon">🐔</div><div class="pdf-kpi-val">${(g.ponedoras+g.recrías).toLocaleString('es')}</div><div class="pdf-kpi-lbl">Total Aves</div></div>
+      <div class="pdf-kpi" style="border-color:#d4a043"><div class="pdf-kpi-icon">🥚</div><div class="pdf-kpi-val">${g.huevosHoy.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Huevos Hoy</div></div>
+      <div class="pdf-kpi" style="border-color:${bc}"><div class="pdf-kpi-icon">📈</div><div class="pdf-kpi-val">${g.pct7?g.pct7+'%':'—'}</div><div class="pdf-kpi-lbl">% Postura 7d</div></div>
+      <div class="pdf-kpi" style="border-color:#c05050"><div class="pdf-kpi-icon">💀</div><div class="pdf-kpi-val">${totalM.toLocaleString('es')}</div><div class="pdf-kpi-lbl">Mortandad</div></div>
+      <div class="pdf-kpi" style="border-color:#7a9ab5"><div class="pdf-kpi-icon">💊</div><div class="pdf-kpi-val">${medAct.length}</div><div class="pdf-kpi-lbl">Trat. Activos</div></div>
+    </div>
+
+    <!-- LOTES DEL GALPÓN -->
+    <div class="pdf-section pdf-section-full" style="margin-bottom:14px">
+      <div class="pdf-section-header" style="background:linear-gradient(135deg,#c8853a,#a86828)"><span>🐣 LOTES EN ESTE GALPÓN</span><span>${g.lotes.length}</span></div>
+      ${g.lotes.map(l=>{
+        const sem=semanasDesde(l.fecha,l.semanaIngreso);
+        const ps=post.filter(p=>p.loteId===l.id);
+        const lastP=ps[0];
+        const aves=parseInt(l.cantidadActual)||0;
+        const pctL=lastP&&aves>0?((parseInt(lastP.huevos)/aves)*100).toFixed(1):null;
+        const bcL=pctL?parseFloat(pctL)>=80?'#c8853a':parseFloat(pctL)>=60?'#d4a043':'#c05050':'#8a6848';
+        return`<div class="pdf-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;align-items:center">
+          <div><span style="font-weight:700">${l.nombre}</span><span class="pdf-badge ${l.etapa==='produccion'?'pdf-badge-green':'pdf-badge-gold'}" style="margin-left:6px">${l.etapa==='produccion'?'Producción':'Recría'}</span></div>
+          <span style="color:#8a6848;font-size:.82rem">Sem. ${sem}</span>
+          <span style="font-weight:600">${aves.toLocaleString('es')} aves</span>
+          <span style="font-weight:700;color:${bcL}">${pctL?pctL+'%':'—'}</span>
+          <span style="color:#8a6848;font-size:.78rem">${lastP?fmtDate(lastP.fecha):'Sin postura'}</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="pdf-cols">
+      <!-- ÚLTIMAS POSTURAS -->
+      <div class="pdf-section">
+        <div class="pdf-section-header" style="background:linear-gradient(135deg,#d4a043,#a86828)"><span>🥚 POSTURA RECIENTE</span><span>${totalH.toLocaleString('es')} total</span></div>
+        ${post.length?post.slice(0,10).map(p=>{
+          const lNom=getLoteNombre(p.loteId);
+          const lote=DB.get(KEYS.lotes).find(l=>l.id===p.loteId);
+          const aves=lote?(parseInt(lote.cantidadActual)||0):0;
+          const pN=aves>0?((p.huevos/aves)*100):0;
+          const bc2=pN>=80?'#c8853a':pN>=60?'#d4a043':'#c05050';
+          return`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:${bc2}">${p.huevos} huevos (${pN.toFixed(1)}%)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(p.fecha)}</span></div><div class="pdf-row-detail">${lNom}</div>${pN>0?`<div class="pdf-mini-bar"><div style="width:${Math.min(pN,100)}%;background:${bc2}"></div></div>`:''}</div>`;
+        }).join('')+(post.length>10?`<div class="pdf-empty">... y ${post.length-10} más</div>`:''):'<div class="pdf-empty">Sin registros de postura</div>'}
+      </div>
+
+      <!-- COLUMNA DERECHA -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <!-- VACUNAS PRÓXIMAS -->
+        <div class="pdf-section">
+          <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a9ab5,#4a6a8a)"><span>💉 VACUNAS PRÓXIMAS</span><span>${vacProx.length}</span></div>
+          ${vacProx.length?vacProx.map(v=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${v.vacuna}</span><span class="pdf-badge ${v.dias<=3?'pdf-badge-red':'pdf-badge-blue'}">En ${v.dias}d</span></div><div class="pdf-row-detail">${getLoteNombre(v.loteId)}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin vacunas próximas</div>'}
+        </div>
+        <!-- TRATAMIENTOS ACTIVOS -->
+        <div class="pdf-section">
+          <div class="pdf-section-header" style="background:linear-gradient(135deg,#6a8a6a,#4a6a4a)"><span>💊 TRATAMIENTOS ACTIVOS</span><span>${medAct.length}</span></div>
+          ${medAct.length?medAct.map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${m.nombre}</span><span class="pdf-badge pdf-badge-blue">${m.dias||'?'}d</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)}${m.motivo?' · '+m.motivo:''}</div></div>`).join(''):'<div class="pdf-empty">✅ Sin tratamientos</div>'}
+        </div>
+        <!-- ENFERMEDADES ACTIVAS -->
+        ${enf.length?`<div class="pdf-section">
+          <div class="pdf-section-header" style="background:linear-gradient(135deg,#8a5a3a,#6b3e1e)"><span>🦠 ENFERMEDADES ACTIVAS</span><span>${enf.length}</span></div>
+          ${enf.map(e=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name">${e.nombre}</span><span class="pdf-badge pdf-badge-red">Activa</span></div><div class="pdf-row-detail">${getLoteNombre(e.loteId)}</div></div>`).join('')}
+        </div>`:''}
+        <!-- MORTANDAD RECIENTE -->
+        ${mort.length?`<div class="pdf-section">
+          <div class="pdf-section-header" style="background:linear-gradient(135deg,#7a3a3a,#5a2a2a)"><span>💀 MORTANDAD</span><span>${totalM} aves</span></div>
+          ${mort.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,5).map(m=>`<div class="pdf-row"><div class="pdf-row-main"><span class="pdf-row-name" style="color:#c05050">🪦 ${m.cantidad} ave(s)</span><span style="color:#8a6848;font-size:.78rem">${fmtDate(m.fecha)}</span></div><div class="pdf-row-detail">${getLoteNombre(m.loteId)} · ${causas[m.causa]||m.causa}</div></div>`).join('')}
+        </div>`:''}
+      </div>
+    </div>
+
+    ${pdfFooter()}
+  </div>`);
+}
+
 
 function renderAlertas() {
   const el=$('alertasList'); if(!el) return;

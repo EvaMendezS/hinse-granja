@@ -491,3 +491,87 @@ input, select, textarea, button { font-family: inherit; }
 .pdf-lote-badge-etapa{padding:8px 16px;border-radius:8px;font-weight:700;font-size:.85rem;letter-spacing:.06em;}
 .pdf-lote-badge-etapa.prod{background:#d4f0d4;color:#2a6a2a;}
 .pdf-lote-badge-etapa.recria{background:#fdf0d4;color:#8a6020;}
+
+/* ===== GALPÓN VIEW CARDS ===== */
+.galpon-card-full {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  animation: fadeIn .3s ease;
+}
+.galpon-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.galpon-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.galpon-icon-big { font-size: 2rem; }
+.galpon-nombre-big {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--accent2);
+  font-weight: 700;
+}
+.galpon-sub { font-size: .78rem; color: var(--text3); margin-top: 2px; }
+.galpon-stats-full {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.galpon-stat-big {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  text-align: center;
+}
+.gsb-val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.gsb-lbl {
+  display: block;
+  font-size: .65rem;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-top: 4px;
+}
+.galpon-lotes-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.galpon-lote-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .85rem;
+  flex-wrap: wrap;
+}
+.btn-pdf-galpon {
+  background: linear-gradient(135deg, var(--accent3), var(--brown));
+  color: var(--beige);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-pdf-galpon:active { transform: scale(.94); }
