@@ -140,13 +140,16 @@ function wireMas() {
     });
   });
 
-  // Cerrar al tocar fuera — usando capture para que no interfiera con otros clicks
-  document.addEventListener('click', ()=>{
+  // Cerrar al tocar fuera — solo si el click NO es en el topbar ni en botones importantes
+  document.addEventListener('click', (e)=>{
     if(!masMenu.classList.contains('hidden')){
-      masMenu.classList.add('hidden');
-      masBtn.classList.remove('active');
+      // No cerrar si el click fue dentro del masMenu o en el masBtn
+      if(!masMenu.contains(e.target) && e.target !== masBtn && !masBtn.contains(e.target)){
+        masMenu.classList.add('hidden');
+        masBtn.classList.remove('active');
+      }
     }
-  }, { capture: false });
+  });
 
   // Evitar que clicks dentro del menú lo cierren
   masMenu.addEventListener('click', e=>e.stopPropagation());
@@ -197,10 +200,10 @@ function wireStaticButtons() {
     btnSaveNota:         guardarNota,
     btnSaveFormula:      guardarFormula,
     // PDF y exports
-    btnPDF:              generarPDFDash,
-    btnExcel:            exportarExcel,
-    btnImprimirPDF:      ()=>window.print(),
-    btnCerrarPDF:        cerrarPDF,
+    btnPDF:              (e)=>{ e.stopPropagation(); generarPDFDash(); },
+    btnExcel:            (e)=>{ e.stopPropagation(); exportarExcel(); },
+    btnImprimirPDF:      (e)=>{ e.stopPropagation(); window.print(); },
+    btnCerrarPDF:        (e)=>{ e.stopPropagation(); cerrarPDF(); },
     btnExportEnf:        ()=>exportCSV(KEYS.enfermedades,'enfermedades'),
   };
   Object.entries(map).forEach(([id,fn])=>{
@@ -905,7 +908,7 @@ function borrarReg(key,id,rerenderFn){
 // ─── BACKUP JSON ─────────────────────────────────────────────
 function wireBackupButtons(){
   const btnBk=$('btnBackup');
-  if(btnBk) btnBk.addEventListener('click',()=>{
+  if(btnBk) btnBk.addEventListener('click',(e)=>{ e.stopPropagation();
     const data={};Object.values(KEYS).forEach(k=>{data[k]=DB.get(k);});
     data._v=3;data._fecha=new Date().toISOString();
     const a=document.createElement('a');

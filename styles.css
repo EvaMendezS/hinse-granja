@@ -345,7 +345,7 @@ input, select, textarea, button { font-family: inherit; }
   background: var(--bg2);
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   z-index: 100;
 }
 .nav-btn {
@@ -369,7 +369,7 @@ input, select, textarea, button { font-family: inherit; }
   background: var(--card2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px; z-index: 200;
+  padding: 8px; z-index: 600;
   box-shadow: var(--shadow);
   display: flex; flex-direction: column; gap: 4px;
 }
