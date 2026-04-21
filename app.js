@@ -1088,3 +1088,27 @@ function generarPDFLote(loteId){
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+/* ===== FIX PDF ===== */
+function imprimirPDF() {
+  setTimeout(() => {
+    window.print();
+  }, 300);
+}
+
+/* ===== FIX BOTÓN MÁS (por si falla en desktop) ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  const btnMas = document.getElementById('navMasBtn');
+  const menu = document.getElementById('masMenu');
+
+  if (btnMas && menu) {
+    btnMas.addEventListener('click', () => {
+      menu.classList.toggle('hidden');
+    });
+  }
+});
+
+/* ===== CLOSE MENU ===== */
+function closeMenu() {
+  const menu = document.getElementById('masMenu');
+  if (menu) menu.classList.add('hidden');
+}

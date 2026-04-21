@@ -860,3 +860,26 @@ input, select, textarea, button { font-family: inherit; }
   cursor: pointer;
   animation: toastIn .3s ease;
 }
+/* ===== FIX BOTÓN + EN DESKTOP ===== */
+
+.view-header {
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .view-header {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .view-header h2 {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
