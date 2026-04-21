@@ -1,6 +1,6 @@
 /* GranjaHinse — Service Worker v2.0 PRO */
 
-const CACHE = 'hinse-v2.1';
+const CACHE = 'hinse-v2.2';
 
 const ASSETS = [
   './',
