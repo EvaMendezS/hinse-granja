@@ -696,3 +696,90 @@ input, select, textarea, button { font-family: inherit; }
   .pdf-page { padding: 0; max-width: 100%; }
   @page { margin: 15mm; size: A4; }
 }
+
+/* ===== GRÁFICO DE POSTURA ===== */
+.chart-card-postura {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.chart-card-postura::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent3), var(--gold));
+}
+.chart-postura-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.chart-postura-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--accent2);
+}
+.chart-postura-icon { font-size: 1.2rem; }
+.chart-postura-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chart-select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text2);
+  padding: 6px 10px;
+  font-size: .8rem;
+  outline: none;
+  cursor: pointer;
+  max-width: 150px;
+}
+.chart-select:focus { border-color: var(--accent); }
+.chart-select option { background: var(--bg2); }
+.chart-postura-kpis {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.chart-kpi {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  text-align: center;
+  flex: 1;
+  min-width: 70px;
+}
+.chart-kpi-val {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.chart-kpi-lbl {
+  display: block;
+  font-size: .66rem;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-top: 4px;
+}
+.chart-postura-wrap {
+  position: relative;
+  height: 220px;
+  width: 100%;
+}

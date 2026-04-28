@@ -102,6 +102,12 @@ function init() {
   renderEnfermedades();
   renderNotas();
   renderFormulas();
+
+  // Gráfico postura — controles
+  const gPeriodo = $('graficoPeriodo');
+  const gLote    = $('graficoLote');
+  if(gPeriodo) gPeriodo.addEventListener('change', actualizarGrafico);
+  if(gLote)    gLote.addEventListener('change', actualizarGrafico);
 }
 
 // ─── NAV PRINCIPAL ───────────────────────────────────────────
@@ -159,7 +165,8 @@ function irA(view) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   const t=$('view-'+view); if(t) t.classList.add('active');
   if(view==='dashboard') renderDashboard();
-  if(view==='historial') renderHistorialSelector();
+  if(view==='historial')    renderHistorialSelector();
+  if(view==='postura')      { setTimeout(()=>actualizarGrafico(),50); }
   if(view==='galpones')  renderGalpones();
 }
 
@@ -427,6 +434,213 @@ function guardarRuptura(){
   }
   cerrarModal('modalRuptura');renderLote();renderPostura();renderDashboard();
   toast('✅ Ruptura registrada — Lote en Producción');
+}
+
+
+// ─── GRÁFICO DE POSTURA ───────────────────────────────────────
+let _chartPostura = null;
+
+function actualizarGrafico() {
+  const periodo = val('graficoPeriodo') || 'mes';
+  const loteId  = val('graficoLote')    || 'todos';
+  renderGraficoPostura(periodo, loteId);
+}
+
+function initGraficoLotes() {
+  const sel = $('graficoLote'); if(!sel) return;
+  const lotes = DB.get(KEYS.lotes).filter(l=>l.etapa==='produccion');
+  sel.innerHTML = '<option value="todos">Todos los lotes</option>' +
+    lotes.map(l=>`<option value="${l.id}">${l.nombre}</option>`).join('');
+}
+
+function renderGraficoPostura(periodo='mes', loteId='todos') {
+  // Llenar select de lotes
+  initGraficoLotes();
+
+  const lotes   = DB.get(KEYS.lotes);
+  const posturas = DB.get(KEYS.postura);
+
+  // Filtrar por lote
+  const filteredPost = loteId==='todos'
+    ? posturas
+    : posturas.filter(p=>p.loteId===loteId);
+
+  // Calcular aves para el % (lote seleccionado o suma de ponedoras)
+  const avesTotales = loteId==='todos'
+    ? lotes.filter(l=>l.etapa==='produccion').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0)
+    : (lotes.find(l=>l.id===loteId) ? parseInt(lotes.find(l=>l.id===loteId).cantidadActual)||0 : 0);
+
+  // Generar labels y agrupaciones según período
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let labels = [], grupos = [];
+
+  if(periodo === 'semana') {
+    // Últimos 7 días — un punto por día
+    for(let i=6; i>=0; i--){
+      const d = new Date(hoy); d.setDate(d.getDate()-i);
+      const str = d.toISOString().split('T')[0];
+      labels.push(d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric'}));
+      grupos.push([str]);
+    }
+  } else if(periodo === 'mes') {
+    // Últimas 4 semanas — un punto por semana
+    for(let i=3; i>=0; i--){
+      const desde = new Date(hoy); desde.setDate(desde.getDate() - i*7 - 6);
+      const hasta = new Date(hoy); hasta.setDate(hasta.getDate() - i*7);
+      const dias=[];
+      for(let d=new Date(desde); d<=hasta; d.setDate(d.getDate()+1))
+        dias.push(d.toISOString().split('T')[0]);
+      const label = `${desde.getDate()}/${desde.getMonth()+1}`;
+      labels.push(label);
+      grupos.push(dias);
+    }
+  } else {
+    // Últimos 3 meses — un punto por semana (12 puntos)
+    for(let i=11; i>=0; i--){
+      const desde = new Date(hoy); desde.setDate(desde.getDate() - i*7 - 6);
+      const hasta = new Date(hoy); hasta.setDate(hasta.getDate() - i*7);
+      const dias=[];
+      for(let d=new Date(desde); d<=hasta; d.setDate(d.getDate()+1))
+        dias.push(d.toISOString().split('T')[0]);
+      const label = `S${12-i}`;
+      labels.push(label);
+      grupos.push(dias);
+    }
+  }
+
+  // Calcular datos por grupo
+  const dataHuevos = grupos.map(dias=>{
+    return filteredPost
+      .filter(p=>dias.includes(p.fecha))
+      .reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
+  });
+
+  // % postura por grupo (si tenemos aves)
+  const dataPct = avesTotales > 0
+    ? dataHuevos.map(h => parseFloat(((h/avesTotales)*100).toFixed(1)))
+    : null;
+
+  // KPIs
+  const totalHuevos = dataHuevos.reduce((s,x)=>s+x,0);
+  const maxHuevos   = Math.max(...dataHuevos, 0);
+  const promHuevos  = dataHuevos.length ? Math.round(totalHuevos/dataHuevos.filter(x=>x>0).length)||0 : 0;
+  const pctProm     = dataPct ? (dataPct.filter(x=>x>0).reduce((s,x)=>s+x,0)/dataPct.filter(x=>x>0).length||0).toFixed(1) : null;
+
+  const kpiEl = $('graficoKPIs');
+  if(kpiEl) kpiEl.innerHTML = `
+    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--gold)">${totalHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Total período</span></div>
+    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--accent)">${promHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Promedio</span></div>
+    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--accent2)">${maxHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Máximo</span></div>
+    ${pctProm?`<div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--blue)">${pctProm}%</span><span class="chart-kpi-lbl">% Postura prom.</span></div>`:''}
+  `;
+
+  // Destruir chart anterior limpiamente
+  if(_chartPostura){ _chartPostura.destroy(); _chartPostura=null; }
+  // Reemplazar canvas para limpiar estado interno de Chart.js
+  const oldCanvas = $('canvasPostura');
+  if(oldCanvas){
+    const newCanvas = document.createElement('canvas');
+    newCanvas.id = 'canvasPostura';
+    oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+  }
+
+  const ctx = $('canvasPostura'); if(!ctx) return;
+
+  const gradFill = ctx.getContext('2d').createLinearGradient(0,0,0,220);
+  gradFill.addColorStop(0,'rgba(200,133,58,0.35)');
+  gradFill.addColorStop(1,'rgba(200,133,58,0.02)');
+
+  const datasets = [{
+    label: 'Huevos',
+    data: dataHuevos,
+    borderColor: '#c8853a',
+    backgroundColor: gradFill,
+    borderWidth: 2.5,
+    pointBackgroundColor: '#d4a043',
+    pointBorderColor: '#fff',
+    pointBorderWidth: 2,
+    pointRadius: 5,
+    pointHoverRadius: 8,
+    fill: true,
+    tension: 0.42,
+    yAxisID: 'y',
+  }];
+
+  if(dataPct){
+    const gradPct = ctx.getContext('2d').createLinearGradient(0,0,0,220);
+    gradPct.addColorStop(0,'rgba(122,154,181,0.2)');
+    gradPct.addColorStop(1,'rgba(122,154,181,0.0)');
+    datasets.push({
+      label: '% Postura',
+      data: dataPct,
+      borderColor: '#7a9ab5',
+      backgroundColor: gradPct,
+      borderWidth: 2,
+      pointBackgroundColor: '#7a9ab5',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      fill: true,
+      tension: 0.42,
+      yAxisID: 'y2',
+      borderDash: [5,3],
+    });
+  }
+
+  _chartPostura = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      animation: { duration: 600, easing: 'easeInOutQuart' },
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: { color:'#c8a880', font:{size:11}, boxWidth:12, padding:12, usePointStyle:true }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(36,26,18,0.95)',
+          titleColor: '#e8b87a',
+          bodyColor: '#c8a880',
+          borderColor: '#4a3020',
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: ctx => ctx.dataset.label==='% Postura'
+              ? ` % Postura: ${ctx.parsed.y}%`
+              : ` Huevos: ${ctx.parsed.y.toLocaleString('es')}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color:'rgba(255,255,255,0.04)', drawBorder:false },
+          ticks: { color:'#8a6848', font:{size:11} }
+        },
+        y: {
+          position: 'left',
+          grid: { color:'rgba(255,255,255,0.06)', drawBorder:false },
+          ticks: { color:'#8a6848', font:{size:11}, callback: v=>v.toLocaleString('es') },
+          title: { display:true, text:'Huevos', color:'#c8853a', font:{size:10} }
+        },
+        ...(dataPct ? {
+          y2: {
+            position: 'right',
+            grid: { drawOnChartArea:false },
+            ticks: { color:'#7a9ab5', font:{size:11}, callback: v=>v+'%' },
+            title: { display:true, text:'% Postura', color:'#7a9ab5', font:{size:10} },
+            min: 0, max: 110,
+          }
+        } : {})
+      }
+    }
+  });
 }
 
 // ─── POSTURA ─────────────────────────────────────────────────

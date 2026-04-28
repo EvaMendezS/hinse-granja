@@ -92,6 +92,32 @@
     <!-- POSTURA -->
     <section id="view-postura" class="view">
       <div class="view-header"><h2>Postura</h2><button class="btn-primary" id="btnNuevaPostura">+ Registrar</button></div>
+
+      <!-- GRÁFICO DE POSTURA -->
+      <div class="chart-card-postura">
+        <div class="chart-postura-header">
+          <div class="chart-postura-title">
+            <span class="chart-postura-icon">🥚</span>
+            <span>Evolución de Postura</span>
+          </div>
+          <div class="chart-postura-controls">
+            <select id="graficoPeriodo" class="chart-select">
+              <option value="semana">Últimos 7 días</option>
+              <option value="mes" selected>Últimas 4 semanas</option>
+              <option value="trimestre">Últimos 3 meses</option>
+            </select>
+            <select id="graficoLote" class="chart-select">
+              <option value="todos">Todos los lotes</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-postura-kpis" id="graficoKPIs"></div>
+        <div class="chart-postura-wrap">
+          <canvas id="canvasPostura"></canvas>
+        </div>
+      </div>
+
+      <!-- LISTADO -->
       <div class="filter-bar"><input type="month" id="filtroPosturaMes" onchange="renderPostura()"/></div>
       <div id="posturaList" class="card-list"></div>
     </section>
@@ -447,6 +473,7 @@
   <div id="pdfContent"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
