@@ -454,122 +454,167 @@ function initGraficoLotes() {
 }
 
 function renderGraficoPostura(periodo='mes', loteId='todos') {
-  // Llenar select de lotes
   initGraficoLotes();
 
   const lotes   = DB.get(KEYS.lotes);
   const posturas = DB.get(KEYS.postura);
 
-  // Filtrar por lote
-  const filteredPost = loteId==='todos'
+  // ── Filtrar estrictamente por lote seleccionado ──────────────
+  const posts = loteId === 'todos'
     ? posturas
-    : posturas.filter(p=>p.loteId===loteId);
+    : posturas.filter(p => p.loteId === loteId);
 
-  // Calcular aves para el % (lote seleccionado o suma de ponedoras)
-  const avesTotales = loteId==='todos'
-    ? lotes.filter(l=>l.etapa==='produccion').reduce((s,l)=>s+(parseInt(l.cantidadActual)||0),0)
-    : (lotes.find(l=>l.id===loteId) ? parseInt(lotes.find(l=>l.id===loteId).cantidadActual)||0 : 0);
+  // Aves del lote para calcular % (solo cuando hay un lote seleccionado)
+  const loteSel   = lotes.find(l => l.id === loteId);
+  const avesLote  = loteSel ? (parseInt(loteSel.cantidadActual)||0) : 0;
+  const mostrarPct = loteId !== 'todos' && avesLote > 0;
 
-  // Generar labels y agrupaciones según período
+  // ── Construir eje de tiempo ──────────────────────────────────
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  let labels = [], grupos = [];
+  let labels = [], fechasPorPunto = [];   // fechasPorPunto: array de arrays de strings YYYY-MM-DD
 
-  if(periodo === 'semana') {
-    // Últimos 7 días — un punto por día
-    for(let i=6; i>=0; i--){
-      const d = new Date(hoy); d.setDate(d.getDate()-i);
+  if (periodo === 'semana') {
+    // Últimos 7 días — 1 punto por día
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoy); d.setDate(d.getDate() - i);
       const str = d.toISOString().split('T')[0];
-      labels.push(d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric'}));
-      grupos.push([str]);
+      labels.push(d.toLocaleDateString('es-AR', {weekday:'short', day:'numeric'}));
+      fechasPorPunto.push([str]);
     }
-  } else if(periodo === 'mes') {
-    // Últimas 4 semanas — un punto por semana
-    for(let i=3; i>=0; i--){
+  } else if (periodo === 'mes') {
+    // Día por día del mes calendario actual
+    const anio = hoy.getFullYear();
+    const mes  = hoy.getMonth();
+    const diasEnMes = new Date(anio, mes+1, 0).getDate();
+    for (let dia = 1; dia <= diasEnMes; dia++) {
+      const d   = new Date(anio, mes, dia);
+      const str = d.toISOString().split('T')[0];
+      labels.push(`${dia}`);
+      fechasPorPunto.push([str]);
+    }
+  } else {
+    // Trimestral — 1 punto por semana (13 semanas ≈ 3 meses)
+    for (let i = 12; i >= 0; i--) {
       const desde = new Date(hoy); desde.setDate(desde.getDate() - i*7 - 6);
       const hasta = new Date(hoy); hasta.setDate(hasta.getDate() - i*7);
-      const dias=[];
-      for(let d=new Date(desde); d<=hasta; d.setDate(d.getDate()+1))
+      const dias = [];
+      for (let d = new Date(desde); d <= hasta; d.setDate(d.getDate()+1))
         dias.push(d.toISOString().split('T')[0]);
       const label = `${desde.getDate()}/${desde.getMonth()+1}`;
       labels.push(label);
-      grupos.push(dias);
-    }
-  } else {
-    // Últimos 3 meses — un punto por semana (12 puntos)
-    for(let i=11; i>=0; i--){
-      const desde = new Date(hoy); desde.setDate(desde.getDate() - i*7 - 6);
-      const hasta = new Date(hoy); hasta.setDate(hasta.getDate() - i*7);
-      const dias=[];
-      for(let d=new Date(desde); d<=hasta; d.setDate(d.getDate()+1))
-        dias.push(d.toISOString().split('T')[0]);
-      const label = `S${12-i}`;
-      labels.push(label);
-      grupos.push(dias);
+      fechasPorPunto.push(dias);
     }
   }
 
-  // Calcular datos por grupo
-  const dataHuevos = grupos.map(dias=>{
-    return filteredPost
-      .filter(p=>dias.includes(p.fecha))
-      .reduce((s,p)=>s+(parseInt(p.huevos)||0),0);
-  });
+  // ── Calcular maples por punto ────────────────────────────────
+  // Total huevos → maples: maple30 + maple20 + sueltos (sueltos no son maple entero)
+  // Mostramos maples30 + maples20 como unidades de maple, y sueltos aparte
+  const dataM30 = fechasPorPunto.map(dias =>
+    posts.filter(p => dias.includes(p.fecha)).reduce((s,p) => s+(parseInt(p.maple30)||0), 0)
+  );
+  const dataM20 = fechasPorPunto.map(dias =>
+    posts.filter(p => dias.includes(p.fecha)).reduce((s,p) => s+(parseInt(p.maple20)||0), 0)
+  );
+  const dataTotalMaples = fechasPorPunto.map((_,i) => dataM30[i] + dataM20[i]);
+  const dataTotalHuevos = fechasPorPunto.map(dias =>
+    posts.filter(p => dias.includes(p.fecha)).reduce((s,p) => s+(parseInt(p.huevos)||0), 0)
+  );
 
-  // % postura por grupo (si tenemos aves)
-  const dataPct = avesTotales > 0
-    ? dataHuevos.map(h => parseFloat(((h/avesTotales)*100).toFixed(1)))
+  // % postura (solo con lote seleccionado)
+  const dataPct = mostrarPct
+    ? dataTotalHuevos.map(h => avesLote > 0 ? parseFloat(((h/avesLote)*100).toFixed(1)) : 0)
     : null;
 
-  // KPIs
-  const totalHuevos = dataHuevos.reduce((s,x)=>s+x,0);
-  const maxHuevos   = Math.max(...dataHuevos, 0);
-  const promHuevos  = dataHuevos.length ? Math.round(totalHuevos/dataHuevos.filter(x=>x>0).length)||0 : 0;
-  const pctProm     = dataPct ? (dataPct.filter(x=>x>0).reduce((s,x)=>s+x,0)/dataPct.filter(x=>x>0).length||0).toFixed(1) : null;
+  // ── KPIs ────────────────────────────────────────────────────
+  const totalM30 = dataM30.reduce((s,x)=>s+x,0);
+  const totalM20 = dataM20.reduce((s,x)=>s+x,0);
+  const totalMaples = totalM30 + totalM20;
+  const totalHuevos = dataTotalHuevos.reduce((s,x)=>s+x,0);
+  const diasConDatos = dataTotalMaples.filter(x=>x>0).length;
+  const promMaples = diasConDatos ? (totalMaples/diasConDatos).toFixed(1) : 0;
+  const maxMaples  = Math.max(...dataTotalMaples, 0);
+  const pctProm    = dataPct
+    ? (dataPct.filter(x=>x>0).reduce((s,x)=>s+x,0) / (dataPct.filter(x=>x>0).length||1)).toFixed(1)
+    : null;
 
   const kpiEl = $('graficoKPIs');
-  if(kpiEl) kpiEl.innerHTML = `
-    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--gold)">${totalHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Total período</span></div>
-    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--accent)">${promHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Promedio</span></div>
-    <div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--accent2)">${maxHuevos.toLocaleString('es')}</span><span class="chart-kpi-lbl">Máximo</span></div>
-    ${pctProm?`<div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--blue)">${pctProm}%</span><span class="chart-kpi-lbl">% Postura prom.</span></div>`:''}
+  if (kpiEl) kpiEl.innerHTML = `
+    <div class="chart-kpi">
+      <span class="chart-kpi-val" style="color:var(--gold)">${totalM30}</span>
+      <span class="chart-kpi-lbl">Maples ×30</span>
+    </div>
+    <div class="chart-kpi">
+      <span class="chart-kpi-val" style="color:var(--accent)">${totalM20}</span>
+      <span class="chart-kpi-lbl">Maples ×20</span>
+    </div>
+    <div class="chart-kpi">
+      <span class="chart-kpi-val" style="color:var(--accent2)">${totalHuevos.toLocaleString('es')}</span>
+      <span class="chart-kpi-lbl">Total huevos</span>
+    </div>
+    <div class="chart-kpi">
+      <span class="chart-kpi-val" style="color:var(--text2)">${promMaples}</span>
+      <span class="chart-kpi-lbl">Prom. maples/día</span>
+    </div>
+    ${pctProm ? `<div class="chart-kpi"><span class="chart-kpi-val" style="color:var(--blue)">${pctProm}%</span><span class="chart-kpi-lbl">% Postura prom.</span></div>` : ''}
   `;
 
-  // Destruir chart anterior limpiamente
-  if(_chartPostura){ _chartPostura.destroy(); _chartPostura=null; }
-  // Reemplazar canvas para limpiar estado interno de Chart.js
-  const oldCanvas = $('canvasPostura');
-  if(oldCanvas){
-    const newCanvas = document.createElement('canvas');
-    newCanvas.id = 'canvasPostura';
-    oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+  // ── Destruir y recrear canvas ────────────────────────────────
+  if (_chartPostura) { _chartPostura.destroy(); _chartPostura = null; }
+  const oldC = $('canvasPostura');
+  if (oldC) {
+    const nc = document.createElement('canvas');
+    nc.id = 'canvasPostura';
+    oldC.parentNode.replaceChild(nc, oldC);
   }
+  const ctxEl = $('canvasPostura'); if (!ctxEl) return;
+  const ctx2d = ctxEl.getContext('2d');
 
-  const ctx = $('canvasPostura'); if(!ctx) return;
+  // Gradientes
+  const gradM30 = ctx2d.createLinearGradient(0,0,0,260);
+  gradM30.addColorStop(0,'rgba(212,160,67,0.45)');
+  gradM30.addColorStop(1,'rgba(212,160,67,0.03)');
 
-  const gradFill = ctx.getContext('2d').createLinearGradient(0,0,0,220);
-  gradFill.addColorStop(0,'rgba(200,133,58,0.35)');
-  gradFill.addColorStop(1,'rgba(200,133,58,0.02)');
+  const gradM20 = ctx2d.createLinearGradient(0,0,0,260);
+  gradM20.addColorStop(0,'rgba(200,133,58,0.35)');
+  gradM20.addColorStop(1,'rgba(200,133,58,0.03)');
 
-  const datasets = [{
-    label: 'Huevos',
-    data: dataHuevos,
-    borderColor: '#c8853a',
-    backgroundColor: gradFill,
-    borderWidth: 2.5,
-    pointBackgroundColor: '#d4a043',
-    pointBorderColor: '#fff',
-    pointBorderWidth: 2,
-    pointRadius: 5,
-    pointHoverRadius: 8,
-    fill: true,
-    tension: 0.42,
-    yAxisID: 'y',
-  }];
+  const datasets = [
+    {
+      label: 'Maples ×30',
+      data: dataM30,
+      borderColor: '#d4a043',
+      backgroundColor: gradM30,
+      borderWidth: 2.5,
+      pointBackgroundColor: '#d4a043',
+      pointBorderColor: '#1c1410',
+      pointBorderWidth: 1.5,
+      pointRadius: periodo==='mes'?3:5,
+      pointHoverRadius: 7,
+      fill: true,
+      tension: 0.38,
+      yAxisID: 'y',
+    },
+    {
+      label: 'Maples ×20',
+      data: dataM20,
+      borderColor: '#c8853a',
+      backgroundColor: gradM20,
+      borderWidth: 2,
+      pointBackgroundColor: '#c8853a',
+      pointBorderColor: '#1c1410',
+      pointBorderWidth: 1.5,
+      pointRadius: periodo==='mes'?3:5,
+      pointHoverRadius: 7,
+      fill: true,
+      tension: 0.38,
+      yAxisID: 'y',
+    }
+  ];
 
-  if(dataPct){
-    const gradPct = ctx.getContext('2d').createLinearGradient(0,0,0,220);
-    gradPct.addColorStop(0,'rgba(122,154,181,0.2)');
-    gradPct.addColorStop(1,'rgba(122,154,181,0.0)');
+  if (dataPct) {
+    const gradPct = ctx2d.createLinearGradient(0,0,0,260);
+    gradPct.addColorStop(0,'rgba(122,154,181,0.25)');
+    gradPct.addColorStop(1,'rgba(122,154,181,0.02)');
     datasets.push({
       label: '% Postura',
       data: dataPct,
@@ -577,22 +622,27 @@ function renderGraficoPostura(periodo='mes', loteId='todos') {
       backgroundColor: gradPct,
       borderWidth: 2,
       pointBackgroundColor: '#7a9ab5',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
-      pointRadius: 4,
-      pointHoverRadius: 7,
-      fill: true,
-      tension: 0.42,
+      pointBorderColor: '#1c1410',
+      pointBorderWidth: 1.5,
+      pointRadius: periodo==='mes'?2:4,
+      pointHoverRadius: 6,
+      fill: false,
+      tension: 0.38,
       yAxisID: 'y2',
-      borderDash: [5,3],
+      borderDash: [4,3],
     });
   }
 
-  _chartPostura = new Chart(ctx, {
+  // Reducir labels en mensual para no saturar el eje X
+  const tickCallback = periodo === 'mes'
+    ? (val, idx) => (idx % 5 === 0 || idx === labels.length-1) ? labels[idx] : ''
+    : undefined;
+
+  _chartPostura = new Chart(ctxEl, {
     type: 'line',
     data: { labels, datasets },
     options: {
-      animation: { duration: 600, easing: 'easeInOutQuart' },
+      animation: { duration: 500, easing: 'easeInOutCubic' },
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
@@ -601,10 +651,10 @@ function renderGraficoPostura(periodo='mes', loteId='todos') {
           display: true,
           position: 'top',
           align: 'end',
-          labels: { color:'#c8a880', font:{size:11}, boxWidth:12, padding:12, usePointStyle:true }
+          labels: { color:'#c8a880', font:{size:11}, boxWidth:10, padding:10, usePointStyle:true }
         },
         tooltip: {
-          backgroundColor: 'rgba(36,26,18,0.95)',
+          backgroundColor: 'rgba(28,20,16,0.96)',
           titleColor: '#e8b87a',
           bodyColor: '#c8a880',
           borderColor: '#4a3020',
@@ -612,30 +662,54 @@ function renderGraficoPostura(periodo='mes', loteId='todos') {
           padding: 10,
           cornerRadius: 8,
           callbacks: {
-            label: ctx => ctx.dataset.label==='% Postura'
-              ? ` % Postura: ${ctx.parsed.y}%`
-              : ` Huevos: ${ctx.parsed.y.toLocaleString('es')}`,
+            title: items => {
+              const i = items[0].dataIndex;
+              return periodo === 'mes'
+                ? `Día ${labels[i]} del mes`
+                : periodo === 'semana'
+                  ? labels[i]
+                  : `Semana del ${labels[i]}`;
+            },
+            label: item => {
+              if (item.dataset.label === '% Postura') return ` % Postura: ${item.parsed.y}%`;
+              if (item.dataset.label === 'Maples ×30') return ` Maples ×30: ${item.parsed.y}`;
+              if (item.dataset.label === 'Maples ×20') return ` Maples ×20: ${item.parsed.y}`;
+              return ` ${item.dataset.label}: ${item.parsed.y}`;
+            },
+            afterBody: items => {
+              const i = items[0].dataIndex;
+              const h = dataTotalHuevos[i];
+              return h > 0 ? [`  Total huevos: ${h.toLocaleString('es')}`] : [];
+            }
           }
         }
       },
       scales: {
         x: {
           grid: { color:'rgba(255,255,255,0.04)', drawBorder:false },
-          ticks: { color:'#8a6848', font:{size:11} }
+          ticks: {
+            color:'#8a6848',
+            font:{size:10},
+            maxRotation: 0,
+            autoSkip: false,
+            callback: tickCallback || function(val, idx){ return labels[idx]; }
+          }
         },
         y: {
           position: 'left',
+          beginAtZero: true,
           grid: { color:'rgba(255,255,255,0.06)', drawBorder:false },
-          ticks: { color:'#8a6848', font:{size:11}, callback: v=>v.toLocaleString('es') },
-          title: { display:true, text:'Huevos', color:'#c8853a', font:{size:10} }
+          ticks: { color:'#8a6848', font:{size:10}, stepSize:1, callback: v => Number.isInteger(v)?v:'' },
+          title: { display:true, text:'Maples', color:'#d4a043', font:{size:10} }
         },
         ...(dataPct ? {
           y2: {
             position: 'right',
+            beginAtZero: true,
+            max: 110,
             grid: { drawOnChartArea:false },
-            ticks: { color:'#7a9ab5', font:{size:11}, callback: v=>v+'%' },
-            title: { display:true, text:'% Postura', color:'#7a9ab5', font:{size:10} },
-            min: 0, max: 110,
+            ticks: { color:'#7a9ab5', font:{size:10}, callback: v=>v+'%' },
+            title: { display:true, text:'% Postura', color:'#7a9ab5', font:{size:10} }
           }
         } : {})
       }
